@@ -323,7 +323,7 @@ Full table in `standards/SKILL_ROUTER.md`.
 
 ```bash
 # Clone the repo
-git clone https://github.com/VetSecItPro/claude-code-skills.git ~/.claude-code-skills
+git clone https://github.com/VetSecItPro/claw-ops.git ~/.claude-code-skills
 
 # Copy skills and standards to Claude Code's config locations
 mkdir -p ~/.claude/commands ~/.claude/standards
