@@ -1145,6 +1145,12 @@ When deployment is confirmed (HTTP 200 on production), suggest: `/monitor` to ru
 
 ---
 
+## STATUS UPDATES
+
+This skill follows the [Status Update Protocol](~/.claude/standards/STATUS_UPDATES.md). See standard for emoji format and cadence rules.
+
+---
+
 ## SITREP
 
 > Reference: [SITREP Standard](~/.claude/standards/SITREP_FORMAT.md)

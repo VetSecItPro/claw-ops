@@ -23,6 +23,27 @@ A newsletter-first publishing skill. Give it a topic, an existing list, or just 
 
 ---
 
+## DISCIPLINE
+
+> Reference: [Steel Discipline Protocol](~/.claude/standards/STEEL_DISCIPLINE.md)
+
+Key enforcements for this skill:
+
+- **Steel Principle #1:** One idea per issue. If you have two ideas, that's two issues. Do not combine.
+- **Steel Principle #2:** Subject line is the real selection signal - if it could apply to any issue, rewrite it. Specificity beats cleverness.
+- **Steel Principle #3:** CTA is singular and soft - placed only after value is delivered. Zero CTAs is better than multiple.
+
+### Rationalization Table
+
+| Rationalization | Reality | What to Do |
+|----------------|---------|------------|
+| "I have two things to say this week, combine them" | Combined issues dilute both ideas and reduce forward rate | Ship one this week, save the second for next week |
+| "Open rate dropped, but it's probably MPP" | Apple Mail Privacy Protection inflated opens; real signal is reply + forward rate | Track CTOR, replies, forwards - not raw opens |
+| "Generic greeting is friendly" | Hey [first name]!" burns attention in the first line | Skip the greeting; lead with the specific situation or scene |
+| "My audience wants ALL the info" | Long-form without one clear idea reads like a brain dump | Respect the 200-600 word range; cut everything not supporting the one idea |
+
+---
+
 ## Newsletter Operators Worth Studying
 
 These operators defined 2026 patterns. Each has a distinct structural signature.
@@ -155,6 +176,23 @@ Every newsletter issue should spawn 3-5 social assets. Do this immediately after
 - Social posts are NOT excerpts. They are remixes. Take the idea, not the sentences.
 - Tag the issue in your repurpose-ideas.md so you have a record.
 - Each repurposed post should drive back to the subscribe link, not just the issue URL.
+
+---
+
+## STATUS UPDATES
+
+This skill follows the [Status Update Protocol](~/.claude/standards/STATUS_UPDATES.md). See standard for emoji format and cadence rules.
+
+---
+
+## CLEANUP PROTOCOL
+
+> Reference: [Resource Cleanup Protocol](~/.claude/standards/CLEANUP_PROTOCOL.md)
+
+Skill-specific cleanup:
+- Reports and artifacts live in gitignored `.newsletter-reports/` directories
+- Any temporary files or sessions are closed at the end of the run
+- No persistent resources are left behind unless explicitly requested
 
 ---
 

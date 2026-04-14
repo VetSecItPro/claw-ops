@@ -37,6 +37,12 @@ Key enforcements for this skill:
 
 ---
 
+## STATUS UPDATES
+
+This skill follows the [Status Update Protocol](~/.claude/standards/STATUS_UPDATES.md). See standard for emoji format and cadence rules.
+
+---
+
 ## PHASE 0: DETECT PROJECT
 
 Identify which blog you're publishing to based on the current working directory and project structure.

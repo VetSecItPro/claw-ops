@@ -232,6 +232,12 @@ Features auto-scale based on complexity classification. `/mdmp` runs fast for sm
 
 ---
 
+## STATUS UPDATES
+
+This skill follows the [Status Update Protocol](~/.claude/standards/STATUS_UPDATES.md). See standard for emoji format and cadence rules.
+
+---
+
 ## PHASE 1: MISSION RECEIPT
 
 ### 1.1 Parse the Mission

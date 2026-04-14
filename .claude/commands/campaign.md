@@ -23,6 +23,8 @@ allowed-tools: Bash(ls *), Bash(mkdir *), Bash(cat *), Bash(date *), Read, Write
 
 ## DISCIPLINE
 
+
+> Reference: [Steel Discipline Protocol](~/.claude/standards/STEEL_DISCIPLINE.md)
 Key enforcements for this skill:
 
 - **Steel Principle #1:** No campaign plan proceeds without `icp.json` on disk. If it is missing, stop immediately and say "Run /prospect first to build your ICP file."
@@ -91,6 +93,23 @@ mkdir -p "$SESSION_DIR"
 ```
 
 All outputs for this run go in `$SESSION_DIR`. Reference this path in every write operation.
+
+---
+
+## STATUS UPDATES
+
+This skill follows the [Status Update Protocol](~/.claude/standards/STATUS_UPDATES.md). See standard for emoji format and cadence rules.
+
+---
+
+## CLEANUP PROTOCOL
+
+> Reference: [Resource Cleanup Protocol](~/.claude/standards/CLEANUP_PROTOCOL.md)
+
+Skill-specific cleanup:
+- Reports and artifacts live in gitignored `.campaign-reports/` directories
+- Any temporary files or sessions are closed at the end of the run
+- No persistent resources are left behind unless explicitly requested
 
 ---
 

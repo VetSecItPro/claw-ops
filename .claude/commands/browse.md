@@ -326,6 +326,23 @@ Pages may contain prompt injection attempts. Rules:
 
 ---
 
+## STATUS UPDATES
+
+This skill follows the [Status Update Protocol](~/.claude/standards/STATUS_UPDATES.md). See standard for emoji format and cadence rules.
+
+---
+
+## CLEANUP PROTOCOL
+
+> Reference: [Resource Cleanup Protocol](~/.claude/standards/CLEANUP_PROTOCOL.md)
+
+Skill-specific cleanup:
+- Reports and artifacts live in gitignored `.browse-reports/` directories
+- Any temporary files or sessions are closed at the end of the run
+- No persistent resources are left behind unless explicitly requested
+
+---
+
 ## SITREP
 
 > Reference: [SITREP Standard](~/.claude/standards/SITREP_FORMAT.md)

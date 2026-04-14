@@ -300,6 +300,12 @@ You are NOT a code reviewer. You are an ATTACKER. You don't care about code patt
 
 ---
 
+## STATUS UPDATES
+
+This skill follows the [Status Update Protocol](~/.claude/standards/STATUS_UPDATES.md). See standard for emoji format and cadence rules.
+
+---
+
 ## Phase 0: Pre-Flight
 
 ### 0.1 Ensure Dev Server Running

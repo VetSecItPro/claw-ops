@@ -11,6 +11,27 @@ allowed-tools: Bash(curl *), Bash(mkdir *), Bash(cat *), Bash(date *), Bash(dock
 
 ---
 
+## DISCIPLINE
+
+> Reference: [Steel Discipline Protocol](~/.claude/standards/STEEL_DISCIPLINE.md)
+
+Key enforcements for this skill:
+
+- **Steel Principle #1:** No scrape without an explicit allowance check (robots.txt read, terms reviewed for commercial use). Sites you cannot scrape ethically get flagged and skipped.
+- **Steel Principle #2:** Output is always cleaned content, never raw HTML unless explicitly requested. Template noise (nav, footer, cookie banners) gets stripped before save.
+- **Steel Principle #3:** Cache first, then fetch. Do not re-hit the same URL within 24 hours unless explicitly refreshed.
+
+### Rationalization Table
+
+| Rationalization | Reality | What to Do |
+|----------------|---------|------------|
+| "Robots.txt is just a suggestion" | Robots.txt is a legally-significant signal; ignoring it risks IP bans and potential legal exposure | Read robots.txt; respect crawl-delay and disallowed paths |
+| "Just grab everything, filter later" | Oversized scrapes waste tokens and return template noise | Scope to the exact selector or section; iterate if needed |
+| "Docker is down, use Jina" | Jina and Crawl4AI return different quality levels; silently swapping masks issues | Explicit fallback with a reason logged; user chooses to proceed or fix Crawl4AI |
+| "I scraped this yesterday, re-scrape to be safe" | Wasted requests hurt target sites and cost tokens | Use the cache; force-refresh only when explicitly requested |
+
+---
+
 ## WHEN TO USE /scrape vs. /browse
 
 | Use /scrape | Use /browse |
@@ -131,6 +152,23 @@ After scraping, strip the following before saving output:
 - Generic meta-section filler ("Last updated: ...", "Reading time: N min")
 
 Keep: hero content, body copy, headings, feature lists, pricing data, testimonials, and any content that answers the user's stated goal.
+
+---
+
+## STATUS UPDATES
+
+This skill follows the [Status Update Protocol](~/.claude/standards/STATUS_UPDATES.md). See standard for emoji format and cadence rules.
+
+---
+
+## CLEANUP PROTOCOL
+
+> Reference: [Resource Cleanup Protocol](~/.claude/standards/CLEANUP_PROTOCOL.md)
+
+Skill-specific cleanup:
+- Reports and artifacts live in gitignored `.scrape-reports/` directories
+- Any temporary files or sessions are closed at the end of the run
+- No persistent resources are left behind unless explicitly requested
 
 ---
 

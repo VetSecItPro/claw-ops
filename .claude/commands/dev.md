@@ -73,6 +73,12 @@ You don't need to think about any of this. It just happens:
 
 ---
 
+## STATUS UPDATES
+
+This skill follows the [Status Update Protocol](~/.claude/standards/STATUS_UPDATES.md). See standard for emoji format and cadence rules.
+
+---
+
 ## Phase 1: Parse Arguments
 
 ```bash

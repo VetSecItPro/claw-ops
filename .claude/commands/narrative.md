@@ -22,6 +22,65 @@ Produces story-driven content for any asset where narrative is the primary mecha
 
 ---
 
+## DISCIPLINE
+
+> Reference: [Steel Discipline Protocol](~/.claude/standards/STEEL_DISCIPLINE.md)
+
+Key enforcements for this skill:
+
+- **Steel Principle #1:** Every asset must have a specific reader in mind before Phase 2; "audience" alone is too vague.
+- **Steel Principle #2:** HARD GATE at Phase 2 - no prose is generated until the storytelling plan is user-approved.
+- **Steel Principle #3:** Voice fingerprint is applied from saved samples, not improvised. If no voice samples exist, pause and collect.
+
+### Rationalization Table
+
+| Rationalization | Reality | What to Do |
+|----------------|---------|------------|
+| "I know the voice, skip the fingerprint load" | Unreferenced voice produces generic-sounding copy within 2 paragraphs | Load the voice samples every time; voice drifts without anchoring |
+| "The opening is fine, move on" | Openings that are "fine" get skipped; openings that earn the scroll get read | Write 3 opening options minimum; pick the one that earns attention |
+| "The reader is obvious from context" | Generic readers produce generic prose; specific readers produce specific prose | Name the reader in one sentence before writing |
+| "Skip the aha-moment, they will get it" | Stories without an aha land as summaries, not narratives | Every narrative needs one moment where the reader's understanding shifts |
+
+---
+
+## STATUS UPDATES
+
+This skill follows the [Status Update Protocol](~/.claude/standards/STATUS_UPDATES.md). See standard for emoji format and cadence rules.
+
+---
+
+## RELATED SKILLS
+
+**Feeds from:**
+- `/brainstorm` - the approved narrative angle from brainstorm is the starting point when voice-driven work is needed
+- `/marketing` - messaging framework provides the Tier 1 message that a narrative hooks to
+
+**Feeds into:**
+- `/copy` - storytelling output becomes the narrative scaffolding inside landing pages, emails, or sales pages
+- `/social` - a story can be distilled into platform-native posts
+- `/blog` - a fully-developed narrative becomes the long-form article
+- `/newsletter` - anchor stories make the best newsletter openings
+
+**Pairs with:**
+- `/copy` - storytelling is invoked from /copy when the asset needs a narrative spine
+- `/social` - called when a post is a story, not an announcement
+
+**Auto-suggest after completion:**
+When the narrative is approved, suggest: `/copy` to embed it in a conversion asset, or `/blog` to expand it into a full article.
+
+---
+
+## CLEANUP PROTOCOL
+
+> Reference: [Resource Cleanup Protocol](~/.claude/standards/CLEANUP_PROTOCOL.md)
+
+Skill-specific cleanup:
+- Reports and artifacts live in gitignored `.narrative-reports/` directories
+- Any temporary files or sessions are closed at the end of the run
+- No persistent resources are left behind unless explicitly requested
+
+---
+
 ## Phase 0: Socratic Interview (5 questions)
 
 Ask these five questions before writing a single word. Do not collapse them into a form. Ask one, wait for the answer, then ask the next.

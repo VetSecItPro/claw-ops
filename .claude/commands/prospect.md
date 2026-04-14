@@ -24,6 +24,8 @@ A full-stack prospect intelligence skill. Give it a context and a goal; it retur
 
 ## DISCIPLINE
 
+
+> Reference: [Steel Discipline Protocol](~/.claude/standards/STEEL_DISCIPLINE.md)
 **Steel Principle #1:** No scoring output without an explicit negative ICP. Omitting disqualifiers is not the same as having none.
 
 **Steel Principle #2:** ICP tiers must be defined by observable signals, not by gut feel. Every tier must specify at least one firmographic, one technographic, and one behavioral or trigger signal.
@@ -40,6 +42,23 @@ A full-stack prospect intelligence skill. Give it a context and a goal; it retur
 | "We'll define the negative ICP later" | Without disqualifiers, reps waste time on accounts that can never buy | Negative ICP is required before any list is exported |
 | "Clay/Apollo will find the best accounts" | Tools surface data; judgment determines fit | Tools execute the ICP you define - garbage in, garbage out |
 | "The trigger event is just a nice-to-have" | Prospects without a trigger event take 3-5x longer to close | Prioritize triggered accounts in every list, always |
+
+---
+
+## STATUS UPDATES
+
+This skill follows the [Status Update Protocol](~/.claude/standards/STATUS_UPDATES.md). See standard for emoji format and cadence rules.
+
+---
+
+## CLEANUP PROTOCOL
+
+> Reference: [Resource Cleanup Protocol](~/.claude/standards/CLEANUP_PROTOCOL.md)
+
+Skill-specific cleanup:
+- Reports and artifacts live in gitignored `.prospect-reports/` directories
+- Any temporary files or sessions are closed at the end of the run
+- No persistent resources are left behind unless explicitly requested
 
 ---
 
