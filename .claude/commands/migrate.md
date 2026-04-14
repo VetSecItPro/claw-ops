@@ -63,6 +63,26 @@ allowed-tools: Bash(cat:*), Bash(ls:*), Bash(find:*), Bash(wc:*), Bash(curl:*), 
 
 ---
 
+## DISCIPLINE
+
+> Reference: [Superpowers Discipline Protocol](~/.claude/standards/STEEL_DISCIPLINE.md)
+
+Key enforcements for this skill:
+- **Steel Principle #1:** NO completion claims without fresh verification evidence — build, type-check, full test suite pass on a real run
+- **Steel Principle #2:** NO guessing breaking changes; fetch the official migration guide every time
+- **Steel Principle #3:** NO scope creep — migrate only the target version; other cleanup waits
+
+### Migrate-Specific Rationalization Table
+
+| Rationalization | Reality | What to Do |
+|----------------|---------|------------|
+| "While I'm here, I'll also refactor X" | Scope creep makes rollback impossible when the migration fails | One migration at a time; refactors are separate PRs |
+| "This change is safe, skip the test" | Safe-looking API updates break runtime behavior silently | Run full tests after every affected file change |
+| "I know the breaking changes, skip the guide" | Official guides list edge cases you've forgotten; deprecations become errors across minors | Fetch the migration guide, check every item |
+| "Only 10 files touched, no need for a branch" | Mid-migration failure on main blocks the team; branch + checkpoint is free insurance | Always on a fresh branch with checkpoint commits |
+
+---
+
 ## STATUS UPDATES
 
 > Reference: [Status Update Protocol](~/.claude/standards/STATUS_UPDATES.md)
@@ -426,6 +446,8 @@ Before any migration work begins:
 
 ## Rollback Plan
 > Pending...
+
+> Reference: [SITREP Standard](~/.claude/standards/SITREP_FORMAT.md) — use the unified template with domain-specific additions below.
 
 ## SITREP
 > Pending...
@@ -1092,6 +1114,27 @@ Cleanup actions:
 8. The rollback plan is mandatory. Every migration report includes exact commands to undo everything.
 9. Respect code style. Migrated code should look like it belongs in the project.
 10. Major migrations are marathons, not sprints. Checkpoint often, report progress, and don't rush.
+
+---
+
+## RELATED SKILLS
+
+**Feeds from:**
+- `/deps` - dependency audit surfaces the packages that need migrating
+- `/brainstorm` - migration strategy options are explored in brainstorm first for major upgrades
+
+**Feeds into:**
+- `/test-ship` - after migration, run full test suite to verify nothing regressed
+- `/docs` - migration changes require updated docs for new APIs and patterns
+- `/db` - library migrations sometimes require schema or query updates
+
+**Pairs with:**
+- `/deps` - run together: deps identifies the problem, migrate fixes it
+- `/test-ship` - migrate and test-ship are always run together on major version upgrades
+
+**Auto-suggest after completion:**
+- `/test-ship` - "Migration complete. Run /test-ship to verify no regressions?"
+- `/docs` - "Update docs to reflect new API patterns? Run /docs."
 
 ---
 

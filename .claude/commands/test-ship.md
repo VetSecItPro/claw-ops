@@ -6,6 +6,30 @@
 
 ---
 
+## DISCIPLINE
+
+> Reference: [Superpowers Discipline Protocol](~/.claude/standards/STEEL_DISCIPLINE.md)
+
+Key enforcements for this skill:
+
+- **Steel Principle #3 (RED-GREEN-REFACTOR):** When writing new tests, follow TDD strictly. Write the test, watch it FAIL (RED) - this proves the test actually catches the issue. Write the implementation (GREEN). Refactor if needed. A test that passes on first run without seeing it fail is suspect.
+- **Steel Principle #1:** "All tests passing" requires `pnpm test` exit code 0 with evidence. Not "I ran the file and it looked right."
+- **No mocking production code:** Tests that mock what they're testing prove nothing. Integration tests must hit real code paths.
+
+### /test-ship-Specific Rationalization Table
+
+| Rationalization | Reality | What to Do |
+|----------------|---------|------------|
+| "This code is too tightly coupled to unit test" | That means it needs refactoring, not skipping the test | Write the test. Let the pain guide the refactoring. |
+| "I'll mock the database, easier than setup" | Mocked DB tests pass while real DB migrations fail | Use a real test database (sqlite in memory or test container) |
+| "The happy path test is enough" | Bugs live in sad paths. Edge cases. Error conditions. | Minimum: happy path + one error path + one edge case per function |
+| "Tests are passing, ship it" | Did you SEE them pass, or assume they pass? | Run `pnpm test` and show exit 0 and pass counts |
+| "This test passes on first run, it's good" | Test that passes without first failing may not be testing what you think | Temporarily break the code, verify test fails, revert code, verify test passes |
+| "Flaky tests, we'll fix them later" | Flaky tests become ignored tests become no tests | Quarantine flaky tests. Fix root cause within 48h or delete. |
+| "Coverage is high, we're good" | Coverage measures lines executed, not behaviors verified | Check that tests actually assert behavior, not just run code |
+
+---
+
 ## Execution Rules (CRITICAL)
 
 - **NO permission requests** — just execute
@@ -613,6 +637,8 @@ fi
 |----|---------|--------|---------|-------|------|
 
 ---
+
+> Reference: [SITREP Standard](~/.claude/standards/SITREP_FORMAT.md) — use the unified template with domain-specific additions below.
 
 ## SITREP
 
@@ -1924,6 +1950,28 @@ echo "All changes from this /test-ship run have been reverted."
 > Reference: [Resource Cleanup Protocol](~/.claude/standards/CLEANUP_PROTOCOL.md)
 
 ### Test-Ship-Specific Cleanup (Supplements Phase 5)
+
+---
+
+## RELATED SKILLS
+
+**Feeds from:**
+- `/subagent-dev` - implementation output needs full test coverage before shipping
+- `/smoketest` - smoketest found issues that escalated to a full test-ship run
+- `/migrate` - after a major migration, run test-ship to verify no regressions
+
+**Feeds into:**
+- `/gh-ship` - a passing test-ship run gates the PR merge
+- `/sec-ship` - test-ship covers functional correctness; sec-ship covers security
+- `/launch` - test-ship is a required launch gate
+
+**Pairs with:**
+- `/sec-ship` - test-ship (functional) + sec-ship (security) = full pre-ship quality gate
+- `/qatest` - test-ship covers unit/integration, qatest covers E2E UX and UAT
+
+**Auto-suggest after completion:**
+- `/sec-ship` - "Tests passing. Run security audit? /sec-ship."
+- `/gh-ship` - "All tests green. Ship it? Run /gh-ship."
 
 Phase 5 already handles: dev server stop, E2E test user teardown, orphaned process killing, port cleanup.
 

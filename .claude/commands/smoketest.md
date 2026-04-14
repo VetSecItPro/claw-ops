@@ -1,5 +1,10 @@
 ---
 description: Quick smoke test — scan, auto-fix, report (~2-3 min)
+allowed-tools: Bash(npx *), Bash(npm *), Bash(pnpm *), Bash(yarn *), Bash(bun *), Bash(curl *), Bash(lsof *), Bash(cat *), Bash(ls *), Bash(grep *), Bash(find *), Bash(head *), Bash(tail *), Bash(wc *), Bash(echo *), Bash(kill *), Bash(pkill *), Bash(sleep *), Bash(PATH=*), Bash(export *), Bash(mkdir *), Bash(date *), Bash(jq *), Read, Write, Edit, Glob, Grep, Task
+---
+
+# /smoketest — Scan, Fix, Report
+
 ## STATUS UPDATES
 
 This skill follows the **[Status Update Protocol](~/.claude/standards/STATUS_UPDATES.md)**.
@@ -8,10 +13,25 @@ See standard for complete format. Skill-specific status examples are provided th
 
 ---
 
-allowed-tools: Bash(npx *), Bash(npm *), Bash(pnpm *), Bash(yarn *), Bash(bun *), Bash(curl *), Bash(lsof *), Bash(cat *), Bash(ls *), Bash(grep *), Bash(find *), Bash(head *), Bash(tail *), Bash(wc *), Bash(echo *), Bash(kill *), Bash(pkill *), Bash(sleep *), Bash(PATH=*), Bash(export *), Bash(mkdir *), Bash(date *), Bash(jq *), Read, Write, Edit, Glob, Grep, Task
----
+## DISCIPLINE
 
-# /smoketest — Scan, Fix, Report
+> Reference: [Superpowers Discipline Protocol](~/.claude/standards/STEEL_DISCIPLINE.md)
+
+Key enforcements for this skill:
+- **Steel Principle #1:** NO "passed" without showing the actual command output (`pnpm build`, `pnpm test` exit codes + pass counts)
+- **Steel Principle #2:** "Safe auto-fix" requires understanding WHY the code was broken before fixing - not just pattern-matching the error
+- 3-strike rule: 3 failed auto-fix attempts → mark BLOCKED, escalate. Don't keep trying variations.
+
+### Smoketest-Specific Rationalization Table
+
+| Rationalization | Reality | What to Do |
+|----------------|---------|------------|
+| "Usually passes, skip the verification step" | Usually != always. Silent failures are how production incidents start | Run every check. Read every output. |
+| "TypeScript warnings are fine, only errors matter" | Warnings become errors on the next `strict: true` upgrade. They compound. | Treat warnings as findings. Document or fix. |
+| "This lint rule is annoying, just disable it" | Disabling rules hides patterns, not problems. The problem persists. | Fix the underlying code, not the rule |
+| "The test was flaky last time, skip re-running" | Flaky tests hide real regressions behind noise | Re-run once. If still fails, investigate - don't dismiss. |
+
+---
 
 **One command. Find what's broken. Fix it. Prove it's fixed.**
 
@@ -175,6 +195,8 @@ Filename: `.smoketest-reports/smoke-YYYY-MM-DD-HHMMSS.md`
 |---|---------|--------|---------|----------|
 
 ---
+
+> Reference: [SITREP Standard](~/.claude/standards/SITREP_FORMAT.md) — use the unified template with domain-specific additions below.
 
 ## SITREP
 
@@ -595,6 +617,27 @@ No flags. No config. Auto-detects everything from package.json.
 6. **Persistent reports** — .smoketest-reports/ tracks history
 7. **Actionable output** — every finding has a status and next step
 8. **Complements the pipeline** — /smoketest (quick) → /test-ship (thorough) → /sec-ship (security) → /gh-ship (deploy)
+
+---
+
+## RELATED SKILLS
+
+**Feeds from:**
+- `/dev` - smoketest always runs against a live local server; dev starts it
+- `/subagent-dev` - quick sanity check after subagent completes a task batch
+
+**Feeds into:**
+- `/test-ship` - smoketest failures that need deeper investigation escalate to test-ship
+- `/gh-ship` - a clean smoketest clears the way for shipping
+- `/investigate` - any regressions that can't be auto-fixed go to investigate
+
+**Pairs with:**
+- `/dev` - start the dev server, then immediately run smoketest; natural pair
+- `/qatest` - smoketest is the quick pre-flight, qatest is the thorough pre-ship gate
+
+**Auto-suggest after completion:**
+- `/test-ship` - "Smoke clear. Want a thorough test run before shipping? Run /test-ship."
+- `/gh-ship` - "All green. Ship it? Run /gh-ship."
 
 ## CLEANUP PROTOCOL
 

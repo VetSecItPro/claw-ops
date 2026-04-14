@@ -38,6 +38,26 @@ DESIGN RATIONALE
 
 ---
 
+## DISCIPLINE
+
+> Reference: [Superpowers Discipline Protocol](~/.claude/standards/STEEL_DISCIPLINE.md)
+
+Key enforcements for this skill:
+- **Steel Principle #1:** NO completion claims without fresh verification evidence — every control claim must cite the file+line that implements it
+- **Steel Principle #2:** NO fabricating controls; if it's not in the codebase, the doc says "planned" or omits it
+- CONFIDENTIAL output — always gitignored, never committed
+
+### Compliance-Docs-Specific Rationalization Table
+
+| Rationalization | Reality | What to Do |
+|----------------|---------|------------|
+| "This control is standard, assume it's there" | Enterprise reviewers verify every claim; one fabricated control kills the deal | Grep the codebase and cite file+line, or mark it "planned" |
+| "Last quarter's doc is still accurate, skip the re-scan" | Code changes weekly; security posture drifts | Re-scan the codebase every regeneration |
+| "A generic template is close enough" | Reviewers spot boilerplate instantly; erodes trust | Ground every claim in the actual code |
+| "Commit the doc so we have a history" | Compliance docs leak internal architecture; never in git | Keep in `.compliance-docs/`, gitignored, share per-prospect |
+
+---
+
 ## STATUS UPDATES
 
 This skill follows the **[Status Update Protocol](~/.claude/standards/STATUS_UPDATES.md)**.
@@ -1026,6 +1046,40 @@ echo "Compliance documents removed"
 - **Share as PDF** — when sending to prospects, export markdown to PDF for a professional presentation
 - **Complements /compliance** — this skill generates documents, /compliance audits code for violations
 - **Complements /sec-ship** — this skill documents security posture, /sec-ship finds and fixes vulnerabilities
+
+## RELATED SKILLS
+
+**Feeds from:**
+- `/compliance` - compliance audits code for GDPR/CCPA violations; compliance-docs documents the resulting posture
+- `/sec-ship` - security hardening produces the controls that compliance-docs describes and certifies
+
+**Feeds into:**
+- (none - compliance-docs produces customer-facing documents that are shared out of band, not consumed by other skills)
+
+**Pairs with:**
+- `/compliance` - run compliance first to surface and fix code-level violations, then run compliance-docs to document the hardened posture
+- `/sec-ship` - run sec-ship to fix vulnerabilities, then compliance-docs to document your security controls for enterprise prospects
+
+**Auto-suggest after completion:**
+When Tier 1 documents are generated, suggest: review and fill in human-specific fields (contact info, SLA targets), then export as PDF for prospect sharing
+
+---
+
+## SITREP
+
+> Reference: [SITREP Standard](~/.claude/standards/SITREP_FORMAT.md)
+
+At the end of every /compliance-docs run, output:
+
+**Skill:** /compliance-docs
+**Status:** COMPLETE / PARTIAL / BLOCKED
+**Documents generated:** [count and names]
+**Compliance frameworks covered:** [list]
+**Gaps identified:** [count]
+**Files created:** [list with paths]
+**Fabricated claims:** none (all grounded in code analysis)
+
+---
 
 ## CLEANUP PROTOCOL
 

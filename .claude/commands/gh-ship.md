@@ -4,6 +4,31 @@ You are a Git automation specialist. Execute the COMPLETE shipping pipeline auto
 
 > **⚡ CONTEXT NOTE:** This skill is ~9K tokens. It runs as a single agent (no sub-agents needed — git operations are lightweight). Safe to invoke mid-conversation. If context pressure is high, the skill's checkpoint is the git state itself — commits, branches, and PRs survive any context reset.
 
+## DISCIPLINE
+
+> Reference: [Superpowers Discipline Protocol](~/.claude/standards/STEEL_DISCIPLINE.md)
+
+Key enforcements for this skill:
+
+- **Steel Principle #1:** "Deployment succeeded" requires curl'ing the endpoint and verifying 200 OK with expected content. Not "Vercel dashboard says success."
+- **Steel Principle #1:** "CI passes" requires reading the actual CI status. Not "it usually passes."
+- **3-strike rule:** CI failures get 3 fix attempts. After 3, escalate - there's likely a deeper issue than the immediate error.
+- **Gate before merge:** Preview deployment must be healthy AND CI must be green before merge attempt. Do not merge to bypass a problem.
+
+### /gh-ship-Specific Rationalization Table
+
+| Rationalization | Reality | What to Do |
+|----------------|---------|------------|
+| "CI usually passes, skip waiting for it" | CI catches things humans miss. Waiting is cheaper than rolling back prod. | Wait for CI. Read the result. |
+| "Preview deploy looks good, merge now" | Preview != prod. Merge only after CI passes AND preview is verified | Both gates green, then merge |
+| "The test failure is probably flaky, retry merge" | Flaky tests mask real bugs. Don't cover them with retries. | Investigate the failure. Fix it or quarantine the test with a reason. |
+| "Force-push to main, just this once" | "Just this once" is how main gets broken | Never force-push to main. Use PRs. Always. |
+| "No time to write a good commit message" | Future-you debugging production will curse past-you | One-line title + explanation in body. Minimum. |
+| "Branch cleanup can wait" | Uncleaned branches become the graveyard others dig through | Clean up as part of the ship flow. Always. |
+| "The deploy completed, skip the monitor check" | Deploy completed != app working. Build succeeded != users can use it. | curl the endpoint. Check expected content. Then claim shipped. |
+
+---
+
 ## CRITICAL RULES
 
 1. **NEVER ask for permission** - just do it
@@ -1095,6 +1120,46 @@ retry_with_backoff() {
 
 ═══════════════════════════════════════════════════════════════
 ```
+
+---
+
+## RELATED SKILLS
+
+**Feeds from:**
+- `/test-ship` - run test-ship before gh-ship to ensure all tests pass and coverage is solid
+- `/sec-ship` - run sec-ship before gh-ship to ensure no vulnerabilities ship
+- `/smoketest` - quick pre-ship sanity check before committing to the full pipeline
+- `/subagent-dev` - subagent-dev produces code; gh-ship ships it
+- `/blog` - blog calls gh-ship automatically at Phase 4 to publish articles
+- `/investigate` - after a fix is confirmed, gh-ship commits and ships it
+
+**Feeds into:**
+- `/monitor` - after gh-ship completes, run monitor to verify the production deployment is healthy
+
+**Pairs with:**
+- `/qatest` - run qatest on the preview deployment before allowing merge
+- `/monitor` - always follow gh-ship with monitor to confirm real-world health
+
+**Auto-suggest after completion:**
+When deployment is confirmed (HTTP 200 on production), suggest: `/monitor` to run a full post-deploy health check
+
+---
+
+## SITREP
+
+> Reference: [SITREP Standard](~/.claude/standards/SITREP_FORMAT.md)
+
+At the end of every /gh-ship run, output:
+
+**Skill:** /gh-ship
+**Status:** COMPLETE / PARTIAL / BLOCKED
+**Branch:** [branch name]
+**Commits:** [count and short hashes]
+**PR:** [URL or "not created"]
+**CI:** [passed/failed/pending]
+**Merged:** [yes/no]
+**Deployed:** [preview URL / production URL / "not deployed"]
+**Cleanup:** [branch deleted yes/no]
 
 ---
 

@@ -45,6 +45,26 @@ DESIGN RATIONALE
 
 ---
 
+## DISCIPLINE
+
+> Reference: [Superpowers Discipline Protocol](~/.claude/standards/STEEL_DISCIPLINE.md)
+
+Key enforcements for this skill:
+- **Steel Principle #1:** NO completion claims without fresh verification evidence — verify policy links render + cited data flows match code
+- **Steel Principle #2:** NO privacy claims without evidence in the code (collection, sharing, retention)
+- Every disclosed data flow must be traceable to actual fetch/db/analytics code
+
+### Compliance-Specific Rationalization Table
+
+| Rationalization | Reality | What to Do |
+|----------------|---------|------------|
+| "We've been clean before, skip the deep audit" | New features add new data flows; last audit doesn't cover this week's changes | Full re-scan every run |
+| "Analytics is standard, don't bother disclosing" | GDPR/CCPA require disclosure of all processors; "standard" is not a defense | List every third-party in the policy |
+| "The privacy policy exists, must be accurate" | Policy drift is the #1 compliance gap; policies lag features by months | Diff claims against actual code behavior |
+| "This retention claim is close enough" | Regulators verify; specifics matter (90 days vs indefinitely is a fine) | Pull the real retention from the code/config |
+
+---
+
 ## STATUS UPDATES
 
 This skill follows the **[Status Update Protocol](~/.claude/standards/STATUS_UPDATES.md)**.
@@ -1359,6 +1379,37 @@ For each fixable finding:
 - Organizations should conduct formal compliance assessments as appropriate
 
 Always consult with a qualified attorney for legal compliance matters.
+
+## RELATED SKILLS
+
+**Feeds from:**
+- (none - /compliance is a standalone audit skill that reads the codebase directly)
+
+**Feeds into:**
+- `/compliance-docs` - compliance audit identifies the real security posture; compliance-docs documents it for enterprise customers
+- `/sec-ship` - data handling violations found by compliance may overlap with security vulnerabilities
+- `/gh-ship` - once compliance violations are remediated, ship the fixes
+
+**Pairs with:**
+- `/compliance-docs` - the natural pair: compliance audits code for violations, compliance-docs produces customer-facing Privacy Policy and data flow documentation
+- `/launch` - compliance is one of 8 required checks in the launch readiness pipeline
+
+**Auto-suggest after completion:**
+When all GDPR/CCPA violations are fixed, suggest: `/compliance-docs` to generate Privacy Policy and Data Flow documentation that proves compliance to enterprise customers
+
+---
+
+## SITREP
+
+> Reference: [SITREP Standard](~/.claude/standards/SITREP_FORMAT.md) — use the unified template with domain-specific additions below.
+
+At the end of every /compliance run, use the unified template. Domain-specific emphasis:
+- Regulation coverage (GDPR/CCPA) per finding
+- Policy link status
+- Data flows disclosed vs. undisclosed
+- Documents generated vs. missing
+
+---
 
 ## CLEANUP PROTOCOL
 

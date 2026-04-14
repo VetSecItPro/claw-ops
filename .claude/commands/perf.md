@@ -42,6 +42,26 @@ DESIGN RATIONALE
 
 ---
 
+## DISCIPLINE
+
+> Reference: [Superpowers Discipline Protocol](~/.claude/standards/STEEL_DISCIPLINE.md)
+
+Key enforcements for this skill:
+- **Steel Principle #1:** NO completion claims without fresh verification evidence — before/after metrics from a real run (Lighthouse, RUM, or equivalent)
+- **Steel Principle #2:** NO "this should be faster" without measurement proving it
+- Every optimization is measured; no vibes-based perf work
+
+### Perf-Specific Rationalization Table
+
+| Rationalization | Reality | What to Do |
+|----------------|---------|------------|
+| "We hit LCP 2.4s last month, skip re-measuring" | Perf regresses on every deploy; last month's number is stale | Re-measure Core Web Vitals every run |
+| "This optimization is obvious, skip the measurement" | Obvious optimizations sometimes regress (bundle bloat from helpers, hydration cost) | Measure before AND after, verify delta is positive |
+| "RUM data is close enough, skip synthetic" | RUM + synthetic are complementary; one hides issues the other catches | Run both; reconcile differences |
+| "Happy path fast, we're done" | Slow paths are where users leave; p95/p99 matter more than median | Check tail latencies, not just averages |
+
+---
+
 ## STATUS UPDATES
 
 This skill follows the **[Status Update Protocol](~/.claude/standards/STATUS_UPDATES.md)**.
@@ -108,7 +128,70 @@ The orchestrator coordinates agents but NEVER runs audits or fixes directly. All
 /perf diagnose           - Deep dive on specific slow area
 /perf report             - Generate performance report without fixing
 /perf fix PERF-XXX       - Fix specific finding manually
+/perf baseline           - Capture pre-deploy baseline (run BEFORE shipping)
+/perf diff               - Benchmark only pages affected by current branch changes
+/perf trend              - Show historical performance trends across all runs
+/perf canary             - Quick post-deploy health check (5 min monitoring)
 ```
+
+### New Mode Details
+
+**Baseline (`baseline`):** Captures a complete performance snapshot for comparison. Run this BEFORE deploying. Saves to `.perf/baseline-YYYYMMDD.json` with per-page timings from the live dev server (not just build output). This is your "before" for post-deploy comparison.
+
+**Diff (`diff`):** Maps branch changes to affected pages (like `/qatest --changed`), then benchmarks ONLY those pages against their baseline. Fast pre-PR perf check (~1-3 min). Flags any page where timing regressed >20% as WARNING or >50% as REGRESSION.
+
+**Trend (`trend`):** Reads `.perf/history.json` and produces a visual trend dashboard showing how performance metrics have changed across all runs. Identifies:
+- Which metrics are improving vs degrading
+- Inflection points (which commit caused a regression)
+- Cumulative gains since first audit
+
+**Canary (`canary`):** Lightweight post-deploy monitoring. Navigates key pages every 60 seconds for 5 minutes. Compares page load times against baseline. Flags any 2x+ increase as REGRESSION. Captures screenshots as evidence. Reports HEALTHY / DEGRADED / BROKEN status. For full monitoring, use `/monitor` instead.
+
+---
+
+### Performance Budgets (Pass/Fail)
+
+Every audit run checks metrics against these industry-standard budgets. Budget violations are separate from findings — a page can have no code issues but still fail its budget.
+
+| Metric | Budget | Status on Fail |
+|--------|--------|---------------|
+| FCP | < 1.8s | WARNING |
+| LCP | < 2.5s | FAIL |
+| CLS | < 0.1 | FAIL |
+| INP | < 200ms | WARNING |
+| TTFB | < 800ms | WARNING |
+| First Load JS per page | < 200kB | WARNING |
+| Total transfer size | < 1MB | WARNING |
+| Third-party JS | < 300kB | WARNING |
+
+**Budget dashboard in report:**
+```
+Performance Budget Check:
+┌───────────────────────────────────────────────┐
+│  FCP     1.2s   ████████░░  PASS (< 1.8s)   │
+│  LCP     2.1s   █████████░  PASS (< 2.5s)   │
+│  CLS     0.04   ████░░░░░░  PASS (< 0.1)    │
+│  INP     180ms  █████████░  PASS (< 200ms)   │
+│  TTFB    450ms  ██████░░░░  PASS (< 800ms)   │
+│  JS      156kB  ████████░░  PASS (< 200kB)   │
+│  Total   780kB  ████████░░  PASS (< 1MB)     │
+│  3rd Pty 210kB  ███████░░░  PASS (< 300kB)   │
+├───────────────────────────────────────────────┤
+│  BUDGET STATUS: ALL PASS ✅                    │
+└───────────────────────────────────────────────┘
+```
+
+### Regression Thresholds
+
+When comparing against baseline (incremental, diff, or canary mode):
+
+| Change | Classification | Action |
+|--------|---------------|--------|
+| < 10% slower | STABLE | No action |
+| 10-20% slower | DRIFT | Note in report, low priority |
+| 20-50% slower | WARNING | Finding created, medium priority |
+| > 50% slower OR > 500ms absolute increase | REGRESSION | Finding created, HIGH priority, blocks ship recommendation |
+| Faster | IMPROVEMENT | Celebrate in report |
 
 ---
 
@@ -184,7 +267,102 @@ When working on deferred items, update Status in real-time on disk:
 
 ## PHASE 1: COMPREHENSIVE BASELINE MEASUREMENT
 
-### 1.1 Capture ALL Metrics Before Optimization
+### 1.0 Live Performance Collection (Browser-Based)
+
+**CRITICAL: Measure from the RUNNING APP, not just build output.** Build metrics tell you bundle sizes; browser metrics tell you actual user experience.
+
+**Requires:** Dev server running. If not, start one (see `/dev`).
+
+**For each page (or top 10 by traffic if 20+ pages):**
+
+1. **Navigate via Playwright MCP** to the page
+2. **Collect timing metrics** via `browser_evaluate`:
+   ```javascript
+   const nav = performance.getEntriesByType('navigation')[0];
+   const paint = performance.getEntriesByType('paint');
+   return {
+     ttfb: nav.responseStart - nav.requestStart,
+     fcp: paint.find(p => p.name === 'first-contentful-paint')?.startTime,
+     domInteractive: nav.domInteractive,
+     domComplete: nav.domComplete,
+     fullLoad: nav.loadEventEnd,
+     transferSize: nav.transferSize,
+   };
+   ```
+3. **Collect LCP** via PerformanceObserver:
+   ```javascript
+   return new Promise(resolve => {
+     new PerformanceObserver(list => {
+       const entries = list.getEntries();
+       resolve(entries[entries.length - 1]?.startTime);
+     }).observe({ type: 'largest-contentful-paint', buffered: true });
+     setTimeout(() => resolve(null), 10000);
+   });
+   ```
+4. **Collect all resource entries** for slowest resource ranking:
+   ```javascript
+   return performance.getEntriesByType('resource').map(r => ({
+     name: r.name, duration: r.duration, size: r.transferSize,
+     type: r.initiatorType, // script, css, img, fetch, etc.
+   })).sort((a, b) => b.duration - a.duration).slice(0, 20);
+   ```
+
+5. **Separate first-party vs third-party resources:**
+   ```javascript
+   const origin = location.origin;
+   const resources = performance.getEntriesByType('resource');
+   const firstParty = resources.filter(r => r.name.startsWith(origin));
+   const thirdParty = resources.filter(r => !r.name.startsWith(origin));
+   return {
+     firstParty: { count: firstParty.length, totalKB: sum(firstParty, 'transferSize') / 1024 },
+     thirdParty: { count: thirdParty.length, totalKB: sum(thirdParty, 'transferSize') / 1024,
+       breakdown: groupBy(thirdParty, r => new URL(r.name).hostname) }
+   };
+   ```
+
+**Output:** Per-page timing table + slowest 20 resources + first/third-party split. Written to `.perf/live-metrics-before.json`.
+
+### Per-Page Timing Table (in report)
+
+```
+Per-Page Performance (Live Measurement):
+┌───────────────────────────────────────────────────────────────────┐
+│  Page              TTFB    FCP     LCP     Full    Budget  Status │
+│  /                 120ms   0.8s    1.2s    1.8s    ✅ PASS        │
+│  /services         95ms    0.7s    1.4s    2.1s    ✅ PASS        │
+│  /portfolio        180ms   1.1s    2.8s    3.5s    ❌ FAIL (LCP)  │
+│  /contact          85ms    0.6s    0.9s    1.5s    ✅ PASS        │
+├───────────────────────────────────────────────────────────────────┤
+│  Budget failures: 1 page (LCP on /portfolio exceeds 2.5s)        │
+└───────────────────────────────────────────────────────────────────┘
+```
+
+### Slowest Resources (Top 10)
+
+```
+Slowest Resources:
+│  #  Resource                              Duration  Size    Type      │
+│  1  /fonts/GeistVF.woff2                  890ms     95kB    font      │
+│  2  /_next/static/chunks/chart-abc.js     620ms     180kB   script    │
+│  3  https://analytics.example.com/t.js    580ms     45kB    3rd-party │
+│  4  /images/hero-portfolio.webp           450ms     320kB   image     │
+│  ...                                                                  │
+```
+
+### Third-Party Impact Analysis
+
+```
+Third-Party JS Impact:
+│  Domain                        Scripts  Size     % of Total JS  │
+│  fonts.googleapis.com          1        0kB      0%             │
+│  analytics.example.com         2        52kB     8.2%           │
+│  cdn.vercel-insights.com       1        12kB     1.9%           │
+├──────────────────────────────────────────────────────────────────│
+│  Total 3rd-party: 64kB (10.1% of total JS)                     │
+│  Budget: ✅ PASS (< 300kB)                                      │
+```
+
+### 1.1 Capture Build Metrics
 
 **CRITICAL: Do this BEFORE any changes**
 
@@ -610,14 +788,31 @@ Same structure as baseline, but with `"type": "after"`
 | Total Bundle | 1.2 MB | 480 kB | **60.0%** smaller |
 | Package Count | 145 | 142 | 3 removed |
 
-### Core Web Vitals (Estimated)
+### Core Web Vitals (Live Measured)
 
 | Metric | Before | After | Target | Status |
 |--------|--------|-------|--------|--------|
-| LCP | ~3.2s | ~1.8s | < 2.5s | ✅ Good |
-| FCP | ~2.1s | ~1.2s | < 1.8s | ✅ Good |
-| CLS | ~0.15 | ~0.05 | < 0.1 | ✅ Good |
-| INP | ~280ms | ~150ms | < 200ms | ✅ Good |
+| LCP | 3.2s | 1.8s | < 2.5s | ✅ Good |
+| FCP | 2.1s | 1.2s | < 1.8s | ✅ Good |
+| CLS | 0.15 | 0.05 | < 0.1 | ✅ Good |
+| INP | 280ms | 150ms | < 200ms | ✅ Good |
+| TTFB | 450ms | 120ms | < 800ms | ✅ Good |
+
+### Performance Budget Status
+
+[Budget dashboard — all metrics vs industry budgets, PASS/FAIL per metric]
+
+### Third-Party Impact
+
+| Domain | Scripts | Size | % of Total |
+|--------|---------|------|-----------|
+| [domain] | [count] | [size] | [%] |
+
+### Slowest Resources (Top 10)
+
+| # | Resource | Duration | Size | Type |
+|---|----------|----------|------|------|
+| 1 | [resource] | [ms] | [kB] | [type] |
 
 ### Database Performance
 
@@ -874,6 +1069,8 @@ Same structure as baseline, but with `"type": "after"`
 
 ## SITREP (Conclusion)
 
+> Reference: [SITREP Standard](~/.claude/standards/SITREP_FORMAT.md) — use the unified template with domain-specific additions below.
+
 ### Mission Status: 🟢 COMPLETE
 
 **Optimization Duration:** 18 minutes 42 seconds
@@ -1046,15 +1243,21 @@ echo "✅ Rolled back to: $PERF_BASE"
 ## REMEMBER
 
 - **Measure BEFORE and AFTER** - Always capture metrics for comparison
+- **Live measurement > build estimates** - Use actual `performance.getEntries()` from the running app, not just build output sizes
 - **Calculate improvements** - Show exact percentages
 - **Mark DONE, never delete** - Preserve task history for audit trail
 - **Write SITREP conclusion** - Historical perspective for future reference
 - **Incremental is default** - After first run, only check changes
 - **Test after every fix** - Catch breakage immediately
 - **Track cumulative gains** - Show improvement over time
+- **Budget check is pass/fail** - Industry budgets are non-negotiable thresholds
+- **Regression thresholds are tiered** - 20% = WARNING, 50% = REGRESSION. Don't alarm on normal variance.
+- **Third-party JS is your hidden tax** - Always separate 1st vs 3rd party impact. You can't fix their code, but you can defer/async it.
+- **Slowest resource wins** - The single slowest resource often matters more than total bundle size
 - **Code efficiency is performance** - Algorithmic waste, redundant ops, and async misuse are as impactful as bundle size
 - **Auto-fix safe patterns only** - Promise.all, constant extraction, useMemo additions are safe; architecture changes get flagged
 - **Think like a senior reviewer** - Flag what a 20-year eng manager would catch in code review: hidden O(n²), scalability red flags, DX pain points
+- **Baseline before deploy** - Run `/perf baseline` before shipping. Without it, post-deploy comparisons have no teeth.
 
 ---
 
@@ -1064,9 +1267,38 @@ echo "✅ Rolled back to: $PERF_BASE"
 
 ### Perf-Specific Cleanup
 
+---
+
+## RELATED SKILLS
+
+**Feeds from:**
+- `/design` - new UI components and layout changes directly impact Core Web Vitals
+- `/monitor` - production performance regressions trigger a targeted perf run
+- `/launch` - perf is a required gate in the launch pipeline
+
+**Feeds into:**
+- `/gh-ship` - perf fixes are committed and shipped via gh-ship
+- `/launch` - perf score contributes to the GO/NO-GO verdict
+
+**Pairs with:**
+- `/a11y` - performance and accessibility audits are both quality gates; run together before launch
+- `/cleancode` - dead code removal and perf optimization overlap on bundle size
+
+**Auto-suggest after completion:**
+- `/gh-ship` - "Perf fixes staged. Ship them? Run /gh-ship."
+- `/launch` - "All quality gates passing? Run /launch for the full pre-ship verdict."
+
+> Reference: [Resource Cleanup Protocol](~/.claude/standards/CLEANUP_PROTOCOL.md) — Ephemeral Artifact Policy
+
 Cleanup actions:
-1. **Gitignore enforcement:** Ensure `.perf/` is in `.gitignore`
-2. **No browser, server, or test data cleanup needed** — this skill performs static analysis and build measurements only
+1. **Close browser instances** — live CWV measurement uses Playwright MCP. Call `browser_close` and verify no orphaned Chromium.
+2. **DELETE intermediate measurement files** — `live-metrics-before.json`, `live-metrics-after.json` are ephemeral. Only KEEP `baseline.json`, `current.json`, and `history.json`.
+3. **DELETE old bundle analysis** — `bundle-analysis/` directories older than 30 days.
+4. **DELETE old build output captures** — `build-before.txt`, `build-after.txt`, `routes-before.txt`, `routes-after.txt` from previous runs.
+5. **KEEP report .md files** — these are the permanent record.
+6. **KEEP history.json** — trend tracking across runs.
+7. **Gitignore enforcement:** Ensure `.perf/` is in `.gitignore`
+8. **Dev server cleanup:** If started for live measurement, kill PID and verify port released.
 
 <!-- Claude Code Skill by Steel Motion LLC — https://steelmotion.dev -->
 <!-- Part of the Claude Code Skills Collection -->

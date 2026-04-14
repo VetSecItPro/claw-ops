@@ -36,6 +36,115 @@ DESIGN RATIONALE
 ═══════════════════════════════════════════════════════════════════════════════
 -->
 
+## DISCIPLINE
+
+> Reference: [Superpowers Discipline Protocol](~/.claude/standards/STEEL_DISCIPLINE.md)
+
+Key enforcements for this skill:
+
+- **Steel Principle #1:** "Vulnerability fixed" requires re-running the specific scanner that found it and confirming it no longer appears. Not "I applied the patch, should be good."
+- **Steel Principle #2:** Fix the root cause, not the symptom. If SQL injection exists, parameterize the query - don't just escape the specific inputs the scanner found.
+- **3-strike rule:** If a fix fails 3 times, it's architectural. Flag for human review. Don't keep trying different escapes.
+
+### /sec-ship-Specific Rationalization Table
+
+| Rationalization | Reality | What to Do |
+|----------------|---------|------------|
+| "This is internal-only, no one will exploit it" | Internal apps get breached. Employees make mistakes. Defense in depth. | Treat every endpoint as public |
+| "This finding is low severity, skip it" | Low-severity findings compound into high-severity chains | Document every finding. Fix or deliberately defer with reason. |
+| "The pattern looks like a false positive" | Assume patterns are exploitable until proven otherwise | Test the exploit. If it works, it's real. |
+| "We've been clean for 3 runs, skip the deep scan" | Past clean state doesn't prove current state | Run the full scan. Clean now is the goal, not clean then. |
+| "The fix passed the test, we're done" | Did the SECURITY test pass? Or the functional test? | Re-run the specific scanner that flagged this finding |
+| "This vuln has never been exploited in the wild" | "Yet." CVEs have "patched" dates for a reason. | Fix it before it IS exploited |
+
+---
+
+## MODES
+
+```bash
+/sec-ship                      # Full audit + auto-fix (default — daily mode, 8/10 confidence gate)
+/sec-ship --comprehensive      # Deep scan, 2/10 confidence gate — monthly or pre-launch
+/sec-ship --audit              # Scan only, no fixes (read-only like gstack /cso)
+/sec-ship --diff               # Scope scan to current branch diff only (fast pre-PR check)
+/sec-ship --infra              # Infrastructure & CI/CD only (Agents 13, 17)
+/sec-ship --code               # Code vulnerabilities only (Agents 3-6, 10-11, 14)
+/sec-ship --supply-chain       # Dependencies & build artifacts only (Agents 1, 17)
+/sec-ship --owasp              # OWASP Top 10 Web + API + LLM only (Agents 3, 6, 8)
+/sec-ship --fix SEC-XXX        # Fix a specific finding manually
+```
+
+### Mode Details
+
+**Daily (default):** Full scan with **8/10 confidence gate**. Only findings with confidence >= 8 are reported and fixed. This is the zero-noise mode — every reported finding is a real, verified vulnerability. Use for regular development cycles.
+
+**Comprehensive (`--comprehensive`):** Full scan with **2/10 confidence gate**. Surfaces tentative findings, theoretical risks, and defense-in-depth recommendations. Use monthly or before major releases. Expect more findings, some of which may be false positives — each includes a confidence score so you can triage.
+
+**Audit (`--audit`):** Read-only mode. Scan everything, produce the full report with findings and recommendations, but **never modify code**. Useful for assessment before deciding on remediation strategy.
+
+**Diff (`--diff`):** Scopes all scanners to files changed on the current branch vs main. Fast pre-PR security check (~1-3 minutes). Only scans modified files and their direct imports. Use before `/gh-ship` to catch security regressions in new code.
+
+**Scope flags** (`--infra`, `--code`, `--supply-chain`, `--owasp`): Focus on one domain. Mutually exclusive — specifying multiple scope flags is an error. Useful for targeted audits after specific types of changes.
+
+---
+
+## CONFIDENCE SCORING SYSTEM
+
+Every finding MUST include a confidence score (1-10). This is the signal-to-noise filter that prevents false positive fatigue.
+
+### Calibration Guide
+
+| Score | Meaning | Evidence Required | Gate |
+|-------|---------|------------------|------|
+| 9-10 | **Verified exploit** — traced code path, confirmed exploitable | Specific file:line, concrete exploit scenario, verified no mitigation exists | Daily (8+) |
+| 7-8 | **High-confidence pattern match** — known vulnerable pattern with no visible mitigation | Pattern match + searched for mitigation and didn't find it | Daily (8+) |
+| 5-6 | **Moderate confidence** — pattern looks risky but mitigation might exist elsewhere | Pattern match, couldn't fully verify mitigation presence/absence | Comprehensive only |
+| 3-4 | **Low confidence** — theoretical risk, defense-in-depth suggestion | General concern, no specific exploit path identified | Comprehensive only |
+| 1-2 | **Speculation** — might be an issue in edge cases | Gut feeling or abstract risk | Comprehensive only |
+
+### Confidence Gate Enforcement
+
+- **Daily mode (default):** Findings with confidence < 8 are **auto-discarded** before reporting. They never appear in the task list or report.
+- **Comprehensive mode:** Findings with confidence < 2 are discarded. All others reported with their confidence score prominently displayed.
+- **Finding format:** Every finding row includes confidence: `| SEC-INJ-001 | CRITICAL | 9/10 | SQL injection in... |`
+
+### Hard-Exclusion Rules (23 Precedent Categories)
+
+These categories are **always auto-excluded** regardless of mode. They generate noise, not signal:
+
+1. Test-only code (`__tests__/`, `*.test.ts`, `*.spec.ts`) — not production attack surface
+2. Memory safety in memory-safe languages (JS/TS/Python) — not applicable
+3. Missing audit/access logs — operational, not vulnerability
+4. DoS/rate-limit as the sole risk — unless it's LLM spend amplification (financial)
+5. HTTP parameter pollution without downstream sink — theoretical only
+6. Generic "input validation recommended" without specific exploit — too vague
+7. Missing CSRF tokens on GET endpoints — GETs should be idempotent by design
+8. `console.warn` in development-only code paths — not production
+9. UUID validation recommendations — UUIDs don't need format validation
+10. Missing `noopener` on same-origin links — only relevant for cross-origin
+11. Type confusion in strongly-typed languages — TypeScript prevents this
+12. Missing `autocomplete="off"` — browser behavior, not vulnerability
+13. Cookie `SameSite` not set (defaults to `Lax` in modern browsers) — unless auth cookie
+14. `X-Powered-By` header present — informational, already checked by Agent 13
+15. Missing subresource integrity on first-party scripts — only relevant for CDN
+16. Session timeout not configured — operational policy, not code vulnerability
+17. Missing rate limiting on public read endpoints — unless resource-intensive
+18. `target="_blank"` without `noopener` on internal links — modern browsers add it
+19. Missing `Expect-CT` header — deprecated in favor of built-in CT
+20. Lockfile not committed — supply chain concern handled by Agent 1 separately
+21. Missing `.npmrc` — operational, not vulnerability
+22. Using `any` type in TypeScript — code quality, not security
+23. Deprecation warnings from dependencies — unless the deprecated API has known CVE
+
+**Never excluded (even if they look like false positives):**
+- Unpinned GitHub Actions (`uses: actions/checkout@v4` without SHA)
+- `pull_request_target` in CI workflows
+- Script injection via `${{ github.event }}` in CI
+- LLM spend amplification (financial DoS)
+- Prompt injection patterns
+- Service role key exposure in client code
+
+---
+
 ## CRITICAL RULES
 
 1. **NEVER ask for permission** — fix automatically unless it requires human decision
@@ -49,6 +158,8 @@ DESIGN RATIONALE
 9. **SITREP ANNOTATES EVERYTHING** — what was fixed, what was deferred and WHY, what was blocked and WHY
 10. **STATUS UPDATE every 5-10 minutes** — keep user informed
 11. **PARALLEL when independent** — spawn agents for concurrent work
+12. **CONFIDENCE SCORE every finding** — 1-10 with calibration per the guide above
+13. **RESPECT the confidence gate** — Daily mode discards < 8/10. No exceptions.
 
 ---
 
@@ -150,6 +261,8 @@ The orchestrator coordinates agents but NEVER scans or fixes code directly. All 
 | Build artifact scanner (Agent 17) | `sonnet` | Must distinguish real secrets from false positives in build output |
 | Security fixer | `sonnet` | Must write correct security fixes that don't break functionality |
 | Report synthesizer | `opus` | Security report may be shared with stakeholders — must be accurate and professional |
+| Independent verification agent | `sonnet` | Must independently reason about exploitability without original scanner's bias |
+| Adversarial subagent | `opus` | Must think like an attacker — cross-cutting concerns, multi-step chains, trust boundaries |
 
 ### Agent Batching
 
@@ -214,6 +327,12 @@ The audit is complete when:
 
 ---
 
+## DISCLAIMER
+
+> **This tool is not a substitute for a professional security audit.** `/sec-ship` is an AI-assisted scanner that catches common vulnerability patterns — it is not comprehensive, not guaranteed, and not a replacement for hiring a qualified penetration testing firm. Production systems handling PII, financial data, or health records should engage professional security auditors in addition to automated tooling. The confidence scoring system reduces false positives but cannot eliminate them entirely.
+
+---
+
 ## OUTPUT STRUCTURE
 
 ```
@@ -221,7 +340,8 @@ The audit is complete when:
 ├── sec-ship-YYYYMMDD-HHMMSS.md    # Main report with task list & conclusion
 ├── baseline.json                   # Initial vulnerability count
 ├── history.json                    # All audits over time (append-only)
-└── findings.json                   # Machine-readable current findings
+├── findings.json                   # Machine-readable current findings (with fingerprints)
+└── exclusions.json                 # False positives confirmed by verification agents (prevents recurrence)
 ```
 
 ---
@@ -287,10 +407,15 @@ If resuming: read the report, find last completed step in Progress Log, skip to 
 **Iteration:** 1
 
 ## Metadata
+- **Mode:** [daily / comprehensive / audit / diff / scope:infra|code|supply-chain|owasp]
+- **Confidence Gate:** [8/10 (daily) / 2/10 (comprehensive)]
 - **Framework:** [detected]
 - **Database:** [detected]
 - **AI Services:** [detected]
 - **Mobile:** [detected or N/A]
+
+## Security Trend
+[Fingerprint comparison against prior runs — NEW / PERSISTENT / RESOLVED / REGRESSED counts]
 
 ---
 
@@ -304,8 +429,8 @@ If resuming: read the report, find last completed step in Progress Log, skip to 
 
 ## Task List
 
-| ID | Severity | Category | Finding | File:Line | Status |
-|----|----------|----------|---------|-----------|--------|
+| ID | Severity | Confidence | Verified | Trend | Category | Finding | File:Line | Status |
+|----|----------|-----------|----------|-------|----------|---------|-----------|--------|
 
 ---
 
@@ -1307,6 +1432,51 @@ Dockerfile|docker-compose*           # Container definitions
 
 ---
 
+## STAGE 2.5: INDEPENDENT VERIFICATION & ADVERSARIAL REVIEW
+
+**Purpose:** Before any finding reaches the report or gets fixed, verify it independently. This stage eliminates false positives and catches cross-cutting issues that individual scanner agents miss.
+
+### 2.5a Independent Verification Agents
+
+For every finding with confidence >= the active gate (8 for daily, 2 for comprehensive):
+
+1. **Spawn a fresh-context verification agent** — this agent has NO knowledge of the original scanner's reasoning
+2. Agent receives ONLY: the finding ID, the file:line reference, and the claimed vulnerability type
+3. Agent independently reads the code and determines:
+   - **VERIFIED** — confirmed the vulnerability exists with independent evidence
+   - **UNVERIFIED** — could not confirm; may be mitigated elsewhere
+   - **FALSE POSITIVE** — definitively safe; cites specific mitigation code
+4. Only VERIFIED findings proceed to the report
+5. UNVERIFIED findings are included in Comprehensive mode only (with a caveat)
+6. FALSE POSITIVE findings are logged to `.security-reports/exclusions.json` to prevent recurrence
+
+**Agent model:** `sonnet` — must independently reason about exploitability
+**Batching:** Verify up to 5 findings per agent, max 2 verification agents in parallel
+
+### 2.5b Adversarial Subagent (Chaos Engineering Thinking)
+
+After all scanner agents complete, spawn ONE adversarial agent that thinks like an attacker:
+
+1. **Input:** Full attack surface map from Stage 1 + list of all verified findings
+2. **Mission:** Find what the scanners MISSED by thinking about:
+   - Cross-cutting concerns (auth + business logic + AI combining to create an exploit)
+   - Multi-step attack chains (finding A + finding B = critical exploit)
+   - Resource exhaustion paths (not DoS — financial/operational impact)
+   - Trust boundary violations between services
+   - Silent data corruption paths
+   - Race conditions across async operations
+3. **Output:** 0-5 additional findings with confidence scores and exploit scenarios
+4. These findings go through the same verification pipeline
+
+**Agent model:** `opus` — requires deep reasoning across multiple code paths
+**This agent is NOT optional.** It runs on every audit (daily and comprehensive).
+
+### 2.5c Diff-Mode Shortcut
+
+When `--diff` mode is active, skip independent verification (branch changes are small enough for scanner agents to be high-confidence). Still run the adversarial agent but scope it to changed files only.
+
+---
+
 ## STAGE 3: ANALYSIS & PRIORITIZATION
 
 ### 3.1 Severity Classification
@@ -1318,7 +1488,38 @@ Dockerfile|docker-compose*           # Container definitions
 | **MEDIUM** | Should fix, harder to exploit | Yes |
 | **LOW** | Best practice, minor risk | Yes |
 
-### 3.2 Build Fix Order
+**Each finding also includes:**
+- **Confidence:** 1-10 per calibration guide
+- **Verification status:** VERIFIED / UNVERIFIED / FALSE POSITIVE
+- **Fingerprint:** SHA-256 hash of `finding_id + file_path + line_range + vulnerability_type` — used for cross-run tracking
+
+### 3.2 Fingerprint-Based Trend Tracking
+
+Every finding gets a unique fingerprint. On subsequent runs, fingerprints are compared against `.security-reports/findings.json` to classify each finding:
+
+| Classification | Meaning | Display |
+|---------------|---------|---------|
+| **NEW** | First time seeing this fingerprint | `🆕 NEW` |
+| **PERSISTENT** | Same fingerprint from prior run, still unfixed | `⚠️ PERSISTENT (since YYYY-MM-DD)` |
+| **RESOLVED** | Fingerprint from prior run no longer detected | `✅ RESOLVED` |
+| **REGRESSED** | Fingerprint was RESOLVED in a prior run but reappeared | `🔴 REGRESSED` |
+
+**Trend dashboard in report:**
+```
+Security Trend (last 3 runs):
+┌─────────────────────────────────────────────────┐
+│  Run 1 (2026-03-01): 28 findings → 0 remaining │
+│  Run 2 (2026-03-15): 4 new findings → 0 remaining │
+│  Run 3 (today):      2 new, 1 regressed → fixing │
+├─────────────────────────────────────────────────┤
+│  Persistent: 0  |  Regressed: 1  |  New: 2      │
+│  Trend: STABLE (low new finding rate)            │
+└─────────────────────────────────────────────────┘
+```
+
+**REGRESSED findings are automatically elevated one severity level** (e.g., MEDIUM → HIGH). A fix that was applied and then reverted is a process problem, not just a code problem.
+
+### 3.3 Build Fix Order
 
 Respect dependencies:
 ```
@@ -1544,6 +1745,8 @@ Generate regression tests for critical fixes.
 
 ## SITREP (Conclusion)
 
+> Reference: [SITREP Standard](~/.claude/standards/SITREP_FORMAT.md) — use the unified template with domain-specific additions below.
+
 ### Mission Status: 🟢 COMPLETE
 
 **Duration:** 24 minutes 18 seconds
@@ -1667,10 +1870,14 @@ Append to `.security-reports/history.json`:
 
 ### Sec-Ship-Specific Cleanup
 
+> Reference: [Resource Cleanup Protocol](~/.claude/standards/CLEANUP_PROTOCOL.md) — Ephemeral Artifact Policy
+
 Cleanup actions:
 1. **Gitignore enforcement:** Ensure `.security-reports/` is in `.gitignore`
 2. **Dependency disclosure:** If security fixes required installing packages (e.g., DOMPurify, helmet), document in SITREP as intentional additions
-3. **No browser, server, or test data cleanup needed** — this skill modifies code only
+3. **KEEP permanently:** `findings.json` (fingerprints for trend tracking), `exclusions.json` (false positive memory), `history.json` (audit history), report `.md` files
+4. **DELETE old state files:** State files older than 24 hours (no longer useful for resume)
+5. **No browser, server, or test data cleanup needed** — this skill modifies code only
 
 ---
 
@@ -1686,6 +1893,37 @@ Cleanup actions:
 - **Test after fixes** — Verify nothing broke
 - **Score and track** — Show improvement over time
 - **Report survives session restart** — Resume from where it left off via Progress Log
+- **Confidence score EVERY finding** — 1-10, calibrated per the guide. No unscored findings.
+- **Verify independently** — No finding reaches the report without Stage 2.5 verification
+- **Adversarial thinking is mandatory** — The chaos agent runs on EVERY audit, not just comprehensive
+- **Fingerprint everything** — Every finding gets a hash for cross-run tracking. Regressions auto-elevate.
+- **Respect the gate** — Daily mode = 8/10 confidence minimum. Don't report noise.
+- **Exclusions prevent recurrence** — False positives go in exclusions.json, not just discarded
+- **This tool has limits** — Always include the disclaimer. Never claim comprehensive coverage.
+
+---
+
+## RELATED SKILLS
+
+**Feeds from:**
+- `/subagent-dev` - new code needs a security audit before shipping
+- `/redteam` - active exploitation findings feed into sec-ship for remediation
+- `/deps` - vulnerable dependencies are fixed in sec-ship
+- `/incident` - security incidents trigger an emergency sec-ship run
+
+**Feeds into:**
+- `/gh-ship` - security fixes are committed and shipped via gh-ship
+- `/compliance` - confirmed vulnerabilities may require compliance posture updates
+- `/compliance-docs` - security findings inform compliance documentation
+- `/launch` - sec-ship is a required launch gate
+
+**Pairs with:**
+- `/redteam` - static analysis (sec-ship) + active exploitation (redteam) = full security coverage
+- `/deps` - dependency vulnerabilities and code security issues are addressed together
+
+**Auto-suggest after completion:**
+- `/gh-ship` - "Security fixes staged. Ship? Run /gh-ship."
+- `/compliance` - "New vulnerabilities found. Re-evaluate compliance posture? Run /compliance."
 
 <!-- Claude Code Skill by Steel Motion LLC — https://steelmotion.dev -->
 <!-- Part of the Claude Code Skills Collection -->

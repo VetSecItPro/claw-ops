@@ -19,6 +19,26 @@ Comprehensive weekly security audit across all SaaS products and company website
 
 ---
 
+## DISCIPLINE
+
+> Reference: [Superpowers Discipline Protocol](~/.claude/standards/STEEL_DISCIPLINE.md)
+
+Key enforcements for this skill:
+- **Steel Principle #1:** NO completion claims without fresh verification evidence — CI must pass on every auto-fix PR before merge
+- **Steel Principle #2:** NEVER push directly to main; every fix goes through a PR with green CI
+- One repo at a time per agent; cross-repo merges wait for independent CI
+
+### Sec-Weekly-Scan-Specific Rationalization Table
+
+| Rationalization | Reality | What to Do |
+|----------------|---------|------------|
+| "We've been clean before, skip the deep scan" | Past clean state doesn't prove current state; CVEs drop hourly | Run the full scan on every repo every week |
+| "This finding is low severity, skip it" | Low severity findings compound into chains | Document it; fix or explicit defer with justification |
+| "CI is slow, merge and let it run" | Merging before green CI propagates breakage across the fleet | Wait for green CI; auto-merge only on success |
+| "Four repos clean, one flaky — call it done" | Flaky scans hide real issues | Re-run flaky scans; never ship a partial sweep |
+
+---
+
 ## STATUS UPDATES
 
 This skill follows the **[Status Update Protocol](~/.claude/standards/STATUS_UPDATES.md)**.
@@ -644,11 +664,53 @@ When this skill is invoked, execute the following workflow:
 
 **CRITICAL:** Follow status update protocol throughout execution. Never go silent during long-running operations.
 
+## SITREP
+
+> Reference: [SITREP Standard](~/.claude/standards/SITREP_FORMAT.md)
+
+At the end of every /sec-weekly-scan run, output:
+
+**Skill:** /sec-weekly-scan
+**Status:** COMPLETE / PARTIAL / BLOCKED
+**Repos scanned:** [count and names]
+**Vulnerabilities found:** [total]
+**Vulnerabilities fixed:** [total]
+**Severity breakdown:**
+| Severity | Found | Fixed |
+|----------|-------|-------|
+| CRITICAL | 0 | 0 |
+| HIGH | 0 | 0 |
+| MEDIUM | 0 | 0 |
+| LOW | 0 | 0 |
+**PRs created:** [count and URLs]
+
+---
+
 ## CLEANUP PROTOCOL
 
 > Reference: [Resource Cleanup Protocol](~/.claude/standards/CLEANUP_PROTOCOL.md)
 
 ### Sec-Weekly-Scan-Specific Cleanup
+
+---
+
+## RELATED SKILLS
+
+**Feeds from:**
+- `/sec-ship` - weekly scan catches regressions between per-feature sec-ship runs
+- `/monitor` - production anomalies or alerts can trigger an unscheduled weekly scan
+
+**Feeds into:**
+- `/sec-ship` - findings from the weekly scan are remediated via sec-ship on each affected repo
+- `/gh-ship` - fix branches from the scan are merged via gh-ship
+
+**Pairs with:**
+- `/deps` - weekly scan covers CVEs in dependencies; deps handles the actual upgrades
+- `/compliance` - recurring security findings need to be reflected in compliance posture
+
+**Auto-suggest after completion:**
+- `/sec-ship` - "Vulnerabilities found across repos. Remediate each? Run /sec-ship per repo."
+- `/deps` - "Outdated or vulnerable packages identified. Run /deps to upgrade."
 
 Resources this skill may create:
 - Fix branches (`fix/security-scan-*`) across multiple repos

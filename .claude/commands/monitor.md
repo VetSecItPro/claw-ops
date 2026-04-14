@@ -60,6 +60,26 @@ allowed-tools: Bash(cat:*), Bash(ls:*), Bash(find:*), Bash(wc:*), Bash(curl:*), 
 
 ---
 
+## DISCIPLINE
+
+> Reference: [Superpowers Discipline Protocol](~/.claude/standards/STEEL_DISCIPLINE.md)
+
+Key enforcements for this skill:
+- **Steel Principle #1:** NO completion claims without fresh verification evidence — HTTP hits, status codes, and latency data are the evidence
+- **Steel Principle #4:** NO "the deploy passed so it's healthy" — verify every route, every function, every env var
+- Read-only always; /monitor never modifies deployment state
+
+### Monitor-Specific Rationalization Table
+
+| Rationalization | Reality | What to Do |
+|----------------|---------|------------|
+| "The deploy succeeded, no need to monitor" | Deploy success != working in production; env vars missing, DNS stale, cold starts fail | Run the full check post-deploy |
+| "Looks healthy, skip the detailed checks" | Surface health hides latency spikes, edge failures, cache misses | Full health suite — routes, functions, errors, infra |
+| "Last run was green, skip this one" | State drifts: new deploy, new DNS TTL, new quota exceeded | Re-run every time; monitoring is not cacheable |
+| "Runtime errors are probably benign" | Benign error noise buries real incidents | Grep recent runtime logs and triage anomalies |
+
+---
+
 ## STATUS UPDATES
 
 > Reference: [Status Update Protocol](~/.claude/standards/STATUS_UPDATES.md)
@@ -722,6 +742,8 @@ Report: .monitor-reports/MON-20260224-143022.md
 
 ---
 
+> Reference: [SITREP Standard](~/.claude/standards/SITREP_FORMAT.md) — use the unified template with domain-specific additions below.
+
 ## SITREP REQUIREMENTS
 
 The SITREP section of the report must include:
@@ -869,6 +891,28 @@ When run after a previous baseline exists:
 3. Compare all metrics against baseline
 4. Flag any metric that degraded by >20% as a finding
 5. Update history with current run results
+
+---
+
+## RELATED SKILLS
+
+**Feeds from:**
+- `/gh-ship` - monitor is the post-deploy gate; always run after gh-ship to confirm production health
+- `/qatest` - QA results provide context on known issues; monitor cross-references qatest reports
+- `/sec-ship` - security findings that affect runtime health are visible in monitor's error tracking
+
+**Feeds into:**
+- `/incident` - health score below 60 or critical route down triggers incident response
+- `/perf` - degraded response times surfaced by monitor feed into a performance investigation
+- `/sec-ship` - missing security headers or SSL issues flagged by monitor warrant a sec-ship run
+- `/qatest` - degraded routes need deeper functional testing; monitor recommends qatest
+
+**Pairs with:**
+- `/gh-ship` - the standard pair: gh-ship ships, monitor verifies; never ship without monitoring
+- `/incident` - when monitor detects an active outage, incident takes over
+
+**Auto-suggest after completion:**
+When health score is below 80, suggest: `/incident` if critical routes are down, or `/investigate` to root-cause a specific degraded function; when score is A+, no action needed
 
 ---
 

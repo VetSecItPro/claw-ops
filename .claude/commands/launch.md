@@ -1,5 +1,9 @@
 ---
 description: Full launch readiness pipeline — orchestrates all skills + 5 unique checks, scored GO/NO-GO verdict
+allowed-tools: Bash(pnpm *), Bash(npx *), Bash(npm *), Bash(yarn *), Bash(cat *), Bash(ls *), Bash(grep *), Bash(find *), Bash(head *), Bash(tail *), Bash(wc *), Bash(echo *), Bash(mkdir *), Bash(date *), Bash(git *), Bash(du *), Read, Write, Edit, Glob, Grep, Task
+---
+
+# /launch — Full Launch Readiness Pipeline
 
 ## STATUS UPDATES
 
@@ -9,15 +13,29 @@ Status examples: "Running security audit (2/8 skills)...", "Checking SEO readine
 
 ---
 
-allowed-tools: Bash(pnpm *), Bash(npx *), Bash(npm *), Bash(yarn *), Bash(cat *), Bash(ls *), Bash(grep *), Bash(find *), Bash(head *), Bash(tail *), Bash(wc *), Bash(echo *), Bash(mkdir *), Bash(date *), Bash(git *), Bash(du *), Read, Write, Edit, Glob, Grep, Task
-
----
-
-# /launch — Full Launch Readiness Pipeline
-
 **One command. Every skill. Every gap. Scored verdict. Ship with confidence.**
 
 **FULL ORCHESTRATOR** — Spawns sub-agents to run existing skills (audit-only), then performs 5 unique domain checks no other skill covers. Aggregates everything into a unified scorecard with GO/NO-GO verdict.
+
+---
+
+## DISCIPLINE
+
+> Reference: [Superpowers Discipline Protocol](~/.claude/standards/STEEL_DISCIPLINE.md)
+
+Key enforcements for this skill:
+- **Steel Principle #1:** NO GO verdict without fresh verification evidence from every sub-skill (BEFORE and AFTER scores)
+- **Steel Principle #4:** NO inflating scores to reach 100; deferred items are honest signals, not shame
+- Score honestly — a false GO is worse than a NO-GO
+
+### Launch-Specific Rationalization Table
+
+| Rationalization | Reality | What to Do |
+|----------------|---------|------------|
+| "Looks healthy, skip the detailed checks" | Surface health hides deep issues; launches expose them at scale | Run the full skill battery, not smoke tests |
+| "This domain is 85, good enough" | 85 means something is wrong; target is 100 or a documented deferral | Re-sweep any domain below 90 |
+| "Sub-agents say clean, trust them" | Sub-agents lie to themselves too; verify summaries on disk before aggregating | Read the report file, not just the return payload |
+| "We launched something similar last time, skip /sec-ship" | Every launch has new code, new attack surface, new deps | Full security, compliance, and perf runs every launch |
 
 ---
 
@@ -810,6 +828,19 @@ Review deferred items      ← Read the Deferred Items table in the report
 
 ---
 
+## SITREP
+
+> Reference: [SITREP Standard](~/.claude/standards/SITREP_FORMAT.md) — use the unified template with domain-specific additions below.
+
+At the end of every /launch run, use the unified template. Domain-specific emphasis:
+- Overall verdict (GO / CONDITIONAL / NO-GO)
+- Scorecard per domain (before/after/delta)
+- Auto-fixed items (count and list)
+- Deferred items (count, why, what needs to happen)
+- Critical blockers remaining
+
+---
+
 ## CLEANUP PROTOCOL
 
 > Reference: [Resource Cleanup Protocol](~/.claude/standards/CLEANUP_PROTOCOL.md)
@@ -832,6 +863,30 @@ Post-sub-agent verification (after ALL sub-agents complete):
 8. **Log the full cleanup results in the report**
 
 This is the HIGHEST-PRIORITY cleanup in the skill collection because sub-agent resource leaks are invisible to the user.
+
+---
+
+## RELATED SKILLS
+
+**Feeds from:**
+- `/sec-ship` - security audit is Phase 1, Skill 1 of launch; must complete with no critical blockers
+- `/deps` - dependency health is Phase 1, Skill 2 of launch; vulnerable deps block launch
+- `/compliance` - privacy compliance is Phase 1, Skill 3 of launch
+- `/perf` - performance is Phase 1, Skill 4 of launch
+- `/a11y` - accessibility is Phase 1, Skill 5 of launch
+- `/cleancode` - code quality is Phase 1, Skill 6 of launch
+- `/test-ship` - test coverage is Phase 1, Skill 7 of launch
+- `/docs` - documentation is Phase 1, Skill 8 of launch
+
+**Feeds into:**
+- `/gh-ship` - a GO verdict from launch is the green light to ship; run gh-ship immediately after
+
+**Pairs with:**
+- `/monitor` - run monitor after gh-ship completes to verify the deployed product is healthy in production
+- `/qatest` - run qatest on the preview deployment before launch for final functional validation
+
+**Auto-suggest after completion:**
+When launch receives a GO verdict, suggest: `/gh-ship` immediately to ship while all checks are green; follow with `/monitor` post-deploy
 
 ---
 

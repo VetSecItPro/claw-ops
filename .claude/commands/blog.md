@@ -7,6 +7,26 @@ allowed-tools: Bash(git *), Bash(npm *), Bash(npx *), Bash(pnpm *), Bash(yarn *)
 
 You are a blog publishing specialist. Guide the user through an interactive, engaging workflow to create and publish a blog article. Be conversational and fun — this should feel like working with a creative partner, not filling out a form.
 
+## DISCIPLINE
+
+> Reference: [Superpowers Discipline Protocol](~/.claude/standards/STEEL_DISCIPLINE.md)
+
+Key enforcements for this skill:
+- **Steel Principle #1:** NO completion claims without fresh verification evidence — the article must render correctly on the deployed site, not just locally
+- **Steel Principle #4:** NO skipping the preview — read the rendered MDX before declaring it shipped
+- Frontmatter schema matches the project exactly — never guess field names
+
+### Blog-Specific Rationalization Table
+
+| Rationalization | Reality | What to Do |
+|----------------|---------|------------|
+| "The MDX build usually works, skip the preview" | Usually != always. Bad MDX silently produces broken pages | Preview the rendered article before ship |
+| "I'll fix typos after publishing" | Typos in published posts erode credibility; once indexed, they stick | Proofread before publishing, not after |
+| "Image dimensions don't matter that much" | Unsized images cause CLS; broken paths 404 in production | Validate image paths + dimensions before publish |
+| "Frontmatter schema is probably the same as last time" | Schemas drift; missing required fields break the build | Read an existing post to confirm frontmatter shape |
+
+---
+
 ## CRITICAL RULES
 
 1. **Be interactive** — gather content through conversation, not interrogation
@@ -342,6 +362,8 @@ Use the Skill tool to invoke `gh-ship`. This handles the entire git pipeline aut
 
 ---
 
+> Reference: [SITREP Standard](~/.claude/standards/SITREP_FORMAT.md) — use the unified template with domain-specific additions below.
+
 ## PHASE 5: SITREP
 
 After `/gh-ship` completes, deliver a final situation report:
@@ -430,6 +452,24 @@ No cleanup required. All outputs are intentional:
 - MDX blog post file (committed)
 - Images in `public/images/blog/` (committed)
 - Git operations delegated to `/gh-ship` (which handles its own cleanup)
+
+---
+
+## RELATED SKILLS
+
+**Feeds from:**
+- `/marketing` - use the approved messaging framework and ICP as source material for article topics and angles
+- `/copy` - landing page copy and hook angles can seed article content
+
+**Feeds into:**
+- `/social` - every published article should be adapted into platform-native posts; run `/social` immediately after publish to distribute
+
+**Pairs with:**
+- `/gh-ship` - called automatically at Phase 4 to commit, push, and merge the article
+- `/docs` - technical blog posts may warrant ADR entries or documentation updates in parallel
+
+**Auto-suggest after completion:**
+When this skill finishes successfully, suggest: `/social` to distribute the article as social posts across LinkedIn, X, and other platforms
 
 ---
 

@@ -65,6 +65,26 @@ allowed-tools: Bash(cat:*), Bash(ls:*), Bash(find:*), Bash(wc:*), Bash(curl:*), 
 
 ---
 
+## DISCIPLINE
+
+> Reference: [Superpowers Discipline Protocol](~/.claude/standards/STEEL_DISCIPLINE.md)
+
+Key enforcements for this skill:
+- **Steel Principle #1:** NO completion claims without fresh verification evidence — the fix must be validated against real production traffic/logs
+- **Steel Principle #2:** NO hypothesis-driven fixes; collect evidence FIRST, then form root cause
+- Regression test is non-negotiable — no closed incident without a test that would catch it
+
+### Incident-Specific Rationalization Table
+
+| Rationalization | Reality | What to Do |
+|----------------|---------|------------|
+| "The deploy succeeded, no need to monitor" | Deploy success != working in production; user-visible breakage happens post-deploy | Run /monitor post-fix; verify real requests succeed |
+| "Looks healthy now, skip the detailed checks" | Surface health hides deep issues (error rate, latency tails, cold starts) | Full health suite before declaring resolved |
+| "This is obviously a caching issue" | Jumping to root cause wastes time when evidence points elsewhere | Collect evidence first; correlate before concluding |
+| "SEV-4 doesn't need a postmortem" | All incidents teach; postmortem discipline catches pattern bugs | Every incident gets a postmortem, length proportional to severity |
+
+---
+
 ## STATUS UPDATES
 
 > Reference: [Status Update Protocol](~/.claude/standards/STATUS_UPDATES.md)
@@ -822,6 +842,8 @@ Written to `.incident-reports/INC-YYYYMMDD-HHMMSS-postmortem.md`:
 
 ---
 
+> Reference: [SITREP Standard](~/.claude/standards/SITREP_FORMAT.md) — use the unified template with domain-specific additions below.
+
 ## SITREP REQUIREMENTS
 
 The SITREP section of the incident report must include:
@@ -984,6 +1006,26 @@ No resource cleanup required. All code changes are intentional fixes. Failed fix
 Cleanup actions:
 1. **Gitignore enforcement:** Already handled in Stage 0
 2. **Evidence files:** Keep all evidence in `.incident-reports/evidence/` — these are needed for postmortem review
+
+---
+
+## RELATED SKILLS
+
+**Feeds from:**
+- `/monitor` - health score below 60 or a critical route down triggers incident response; monitor is the early warning system
+- `/investigate` - for deep-dive root cause analysis when initial triage reveals a complex bug
+
+**Feeds into:**
+- `/investigate` - for bugs that need deeper evidence-gathering and hypothesis testing beyond incident triage
+- `/sec-ship` - if the incident turns out to be a security breach, hand off to sec-ship for the full security pipeline
+- `/gh-ship` - once the fix is verified, ship it through the normal pipeline
+
+**Pairs with:**
+- `/monitor` - run monitor at the close of the incident to verify the fix actually restored production health
+- `/investigate` - incident handles the urgency and postmortem; investigate handles the deep technical root cause when needed
+
+**Auto-suggest after completion:**
+When incident is resolved and postmortem is written, suggest: `/monitor` to verify production health is restored, then `/gh-ship` if code fixes need to be shipped
 
 ---
 

@@ -6,6 +6,26 @@
 
 ---
 
+## DISCIPLINE
+
+> Reference: [Superpowers Discipline Protocol](~/.claude/standards/STEEL_DISCIPLINE.md)
+
+Key enforcements for this skill:
+- **Steel Principle #1:** NO completion claims without fresh verification evidence — every generated doc is validated against current code
+- **Steel Principle #2:** NO documenting behavior you haven't confirmed; read the code, don't infer
+- Document the WHY, not just the WHAT — links to ADRs, not code echoes
+
+### Docs-Specific Rationalization Table
+
+| Rationalization | Reality | What to Do |
+|----------------|---------|------------|
+| "This is obvious, skip documenting" | Obvious to you, not to the next dev or a future you at 2am | Document the WHY even when the WHAT is clear |
+| "Last quarter's docs are close enough" | Doc rot is the #1 reason teams distrust docs | Re-validate every doc against current code |
+| "The JSDoc echoes the signature, that's fine" | Signature-echo docs add no value and create staleness risk | Document purpose, edge cases, side effects |
+| "Architecture docs can wait" | Tribal knowledge walks out the door; ADRs capture decisions | Generate ADRs for the 5 most impactful patterns found |
+
+---
+
 ## STATUS UPDATES
 
 This skill follows the **[Status Update Protocol](~/.claude/standards/STATUS_UPDATES.md)**.
@@ -1087,6 +1107,38 @@ echo "✅ Documentation reverted"
 - **Commits real docs** — working files gitignored, final docs committed
 - Run monthly to keep docs fresh
 - Run before onboarding new team members
+
+## SITREP
+
+> Reference: [SITREP Standard](~/.claude/standards/SITREP_FORMAT.md) — use the unified template with domain-specific additions below.
+
+At the end of every /docs run, use the unified template. Domain-specific emphasis:
+- Documentation coverage (before/after percentage)
+- Files generated and updated
+- Deferred items (tribal knowledge gaps that need human input)
+- Broken links or stale sections found
+
+---
+
+## RELATED SKILLS
+
+**Feeds from:**
+- `/brainstorm` - approved spec becomes the source of truth for new docs
+- `/subagent-dev` - completed implementation needs docs written to match
+- `/migrate` - migration changes require updated docs for new APIs and patterns
+
+**Feeds into:**
+- `/gh-ship` - docs must be current before a PR ships
+- `/launch` - docs completeness is a launch gate requirement
+
+**Pairs with:**
+- `/cleancode` - refactoring and docs should move together
+- `/copy` - marketing docs and product docs align on messaging
+
+**Auto-suggest after completion:**
+- `/gh-ship` - "Docs updated. Ready to ship? Run /gh-ship."
+
+---
 
 ## CLEANUP PROTOCOL
 

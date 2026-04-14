@@ -31,6 +31,26 @@ This is NOT a unit test runner or a linter. This is **functional validation** �
 
 ---
 
+## DISCIPLINE
+
+> Reference: [Superpowers Discipline Protocol](~/.claude/standards/STEEL_DISCIPLINE.md)
+
+Key enforcements for this skill:
+- **Steel Principle #1:** NO "tests passed" without fresh verification evidence — every run re-crawls and re-tests
+- **Steel Principle #4:** NO happy-path-only testing; sad paths and edge cases are where bugs hide
+- Every autofix is verified against the build before being considered done
+
+### QATest-Specific Rationalization Table
+
+| Rationalization | Reality | What to Do |
+|----------------|---------|------------|
+| "All critical paths covered, skip edge cases" | Edge cases are where bugs hide — empty states, errors, slow networks | Test the edges, not just the center |
+| "Happy path passed, we're done" | Sad paths matter more: 400/500 responses, validation, auth failures | Test error conditions too |
+| "This click probably works the same as last run" | UI drift is constant; last run's state != this run's state | Re-verify every interaction |
+| "Form validates client-side, skip server tests" | Client validation can be bypassed; server must also enforce | Hit the API with bad payloads, verify rejection |
+
+---
+
 ## STATUS UPDATES
 
 This skill follows the **[Status Update Protocol](~/.claude/standards/STATUS_UPDATES.md)**.
@@ -121,6 +141,8 @@ This skill follows the **[Agent Orchestration Protocol](~/.claude/standards/AGEN
 
 ```bash
 /qatest                    # Full comprehensive QA scan (default)
+/qatest --quick            # Quick scan — homepage + 2 key pages, abbreviated checks (~2-3 min)
+/qatest --exhaustive       # Exhaustive — every page at every viewport, all edge cases, full journey suite
 /qatest --changed          # Incremental — only test pages/routes affected by recent changes
 /qatest --api-only         # Only test API routes
 /qatest --pages-only       # Only test pages/UI (skip API testing)
@@ -132,7 +154,13 @@ This skill follows the **[Agent Orchestration Protocol](~/.claude/standards/AGEN
 
 **Full (default):** Crawl every page, test every interactive element, hit every API endpoint, run accessibility, check responsive viewports. This is the pre-ship gate — always run this before deploying.
 
+**Quick (`--quick`):** Lightweight 2-3 minute scan for rapid dev iteration. Tests homepage + 2 highest-traffic pages only. Runs abbreviated checks: page health, basic interactivity, console errors, and a single viewport (desktop). Skips exhaustive a11y, responsive matrix, journey testing, and performance baseline. Produces a mini-report with pass/fail per page. Use this between full runs while actively developing.
+
+**Exhaustive (`--exhaustive`):** Maximum depth scan. Every page at all 3 viewports with full screenshot matrix. All 6 user journeys plus dynamically generated journeys. Full axe-core + manual a11y on every page. Stress testing (rapid navigation, concurrent requests). Extended timeout thresholds. Use before major releases or after architectural changes. Expect 15-30 minutes depending on app size.
+
 **Incremental (`--changed`):** Compare current branch against `main` (or base branch). Only test pages whose source files changed. Useful during development iteration. NEVER use this as the final pre-ship check.
+
+**Auto-Diff Detection:** When no mode flag is provided, the skill auto-detects the git context. If the current branch is NOT `main` (i.e., you're on a feature branch), the skill automatically behaves like `--changed` — scoping tests to pages affected by the branch diff — UNLESS this is the first run on this branch (no previous `.qatest-reports/` for this branch), in which case it runs a full scan to establish a baseline. On `main`, always runs full. This means you can just type `/qatest` on a feature branch and get smart, scoped testing without remembering flags.
 
 **API Only (`--api-only`):** Skip browser testing entirely. Test all API routes with valid/invalid payloads, check response codes, headers, rate limiting, CORS. Useful after backend-only changes.
 
@@ -141,6 +169,14 @@ This skill follows the **[Agent Orchestration Protocol](~/.claude/standards/AGEN
 **Retest (`--retest`):** Read the last `.qatest-reports/` report, find all FAILED and DEFERRED items, re-test only those. Useful after manual fixes.
 
 **No Fix (`--no-fix`):** Run all scanning phases but skip the autofix phase. Produces a report-only audit.
+
+### Depth Tiers Summary
+
+| Tier | Pages Tested | Viewports | A11y | Journeys | Perf Check | Est. Time |
+|------|-------------|-----------|------|----------|------------|-----------|
+| Quick | 3 (home + 2 key) | Desktop only | Skip | Skip | Skip | 2-3 min |
+| Full (default) | All pages | 3 viewports | axe-core + manual | 6 standard | Spot check | 5-15 min |
+| Exhaustive | All pages + edge cases | 3 viewports + 2 extra (414px, 1920px) | Full axe + manual + screen reader sim | All + dynamic | Full CWV per page | 15-30 min |
 
 ---
 
@@ -264,18 +300,36 @@ The timestamped markdown report in `.qatest-reports/` is the definitive record. 
    ```
    - mkdir -p .qatest-reports/screenshots .qatest-reports/evidence
    - Create state file: .qatest-reports/state-YYYYMMDD-HHMMSS.json
+   - Store current branch name in state file (for auto-diff detection on subsequent runs)
    - Create report skeleton: .qatest-reports/qatest-YYYYMMDD-HHMMSS.md
+   - Include Health Score Dashboard placeholder in skeleton
+   - Include Regression Tests Generated section placeholder in skeleton
+   - Include Evidence (Before/After) section placeholder in skeleton
    - Ensure .qatest-reports/ is in .gitignore (add if missing)
    ```
 
 9. **Parse mode flags:**
    ```
+   - --quick: Set depth=quick, test homepage + 2 key pages, abbreviated checks, desktop only
+   - --exhaustive: Set depth=exhaustive, all pages + extra viewports + dynamic journeys + full CWV
    - --changed: Identify changed files vs main branch, map to affected routes
    - --api-only: Skip browser phases (page health, interactive, responsive)
    - --pages-only: Skip phase 4 (API testing)
    - --retest: Load last report, extract FAILED/DEFERRED items, test only those
    - --no-fix: Set autofix=false, skip phase 8
    ```
+
+10. **Auto-diff detection (when no mode flag provided):**
+    ```
+    - Run: git branch --show-current
+    - If NOT on main/master:
+      - Check: Does .qatest-reports/ contain a report for this branch? (grep branch name in state files)
+      - If YES (previous run exists): Auto-engage --changed mode (scope to branch diff)
+      - If NO (first run on branch): Run full scan to establish baseline
+      - Log: "Auto-detected feature branch '[branch]' — running [mode]"
+    - If on main/master: Always run full scan
+    - This auto-detection is OVERRIDDEN by any explicit flag (--quick, --changed, --exhaustive, etc.)
+    ```
 
 **Output:** Project configuration object, capability flags, list of routes to test, state file initialized.
 
@@ -458,6 +512,9 @@ The timestamped markdown report in `.qatest-reports/` is the definitive record. 
      - Mixed content (HTTP on HTTPS page) → FINDING (severity: HIGH — security)
 
 7. **Screenshot:** Use `browser_screenshot` → save to `.qatest-reports/screenshots/{route-slug}.png`
+   - **Evidence linking:** When a finding is discovered on this page, take an additional screenshot named `.qatest-reports/evidence/QA-NNN-{route-slug}.png` that captures the specific issue
+   - For findings with before/after states (e.g., autofix candidates), capture BOTH: `QA-NNN-before.png` and `QA-NNN-after.png` (after screenshot taken post-fix in Phase 8)
+   - Every finding in the report MUST reference its evidence screenshot path in the `Evidence` field
 
 8. **Comprehensive DOM validation:**
    - **SEO fundamentals:**
@@ -1097,6 +1154,33 @@ Per-category scoring:
 Floor: 0 (never negative)
 ```
 
+**Health Score Breakdown (displayed in report):**
+
+The QA Score is a composite, but the report MUST also break out a **Health Score** per dimension for at-a-glance triage:
+
+```
+Health Score Dashboard:
+┌──────────────────────────────────┐
+│  Page Health     ████████░░  82  │
+│  Interactivity   █████████░  91  │
+│  API Correct.    ██████████ 100  │
+│  Accessibility   ██████░░░░  64  │  ← Worst dimension flagged
+│  Responsive      ████████░░  85  │
+│  Integration     ██████████  97  │
+│  Performance     █████████░  90  │
+├──────────────────────────────────┤
+│  COMPOSITE QA SCORE:  87/100 (B) │
+└──────────────────────────────────┘
+```
+
+Each dimension also gets a delta when previous runs exist: `82 (+5 ↑)` or `64 (-3 ↓)`. This tracks whether the codebase is improving or regressing per-dimension over time.
+
+**Trend tracking:** If previous `.qatest-reports/` reports exist, compare:
+- Overall QA score trend (last 3 runs)
+- Per-dimension delta
+- Finding count delta (new findings vs. resolved findings)
+- Display as: `Trend: 79 → 83 → 87 (improving ↑)` or `Trend: 92 → 88 → 85 (declining ↓)`
+
 **Grade scale:**
 - 95-100: A+ (Ship with confidence)
 - 90-94: A (Ship — minor issues only)
@@ -1187,6 +1271,57 @@ Mark each finding as:
 
 ---
 
+### Phase 8.5: Regression Test Generation
+
+**Purpose:** For every autofix applied in Phase 8, generate a targeted regression test that would catch the bug if it reappears. This ensures fixes are durable — not just verified once, but permanently guarded.
+
+**Agent:** `sonnet` — Regression Test Generator (sequential, one test per fix)
+
+**IMPORTANT:** Skip this phase if `--no-fix` flag is set or if no autofixes were applied in Phase 8. Also skip if `--quick` mode is active.
+
+**For each FIXED finding from Phase 8:**
+
+1. **Determine test type based on finding category:**
+   | Finding Category | Test Type | Location |
+   |-----------------|-----------|----------|
+   | Missing HTML attribute (alt, rel, lang) | Unit/snapshot test | `__tests__/qa-regression/` or colocated `*.test.tsx` |
+   | Broken internal link | Integration test | `__tests__/qa-regression/links.test.ts` |
+   | Missing security header | API/middleware test | `__tests__/qa-regression/headers.test.ts` |
+   | Form validation gap | Component test | Colocated with form component |
+   | Console error on page load | E2E test (if Playwright available) | `e2e/qa-regression/` |
+   | Missing SEO tag | Snapshot or render test | `__tests__/qa-regression/seo.test.ts` |
+
+2. **Generate the regression test:**
+   - Test MUST assert the specific condition that was broken (not just "page renders")
+   - Test name format: `it('QA-NNN: [finding description]', ...)`
+   - Include a comment with the finding ID and date: `// Regression test for QA-NNN (YYYY-MM-DD)`
+   - Use the project's existing test framework (Jest, Vitest, Playwright — detect from package.json)
+   - If no test framework is configured: bootstrap Vitest with minimal config, then generate tests
+
+3. **Verify the test:**
+   - Run ONLY the new test file: `npx vitest run __tests__/qa-regression/` (or equivalent)
+   - Test MUST pass (it's testing the fixed state)
+   - If the test fails: debug once, then skip test generation for that finding (don't block the pipeline)
+
+4. **Test file organization:**
+   ```
+   __tests__/qa-regression/
+   ├── attributes.test.ts    # Missing alt, rel, lang, aria-label tests
+   ├── links.test.ts         # Broken link regression tests
+   ├── headers.test.ts       # Security header tests
+   ├── seo.test.ts           # SEO tag regression tests
+   └── [component].test.ts   # Component-specific tests (colocated)
+   ```
+
+5. **Update the report:**
+   - Add a "Regression Tests Generated" section to the report
+   - List each test with its finding ID, file path, and pass/fail status
+   - Example: `| QA-003 | Missing alt on hero img | __tests__/qa-regression/attributes.test.ts:12 | ✅ PASS |`
+
+**Output:** List of generated test files, test run results, updated report section.
+
+---
+
 ### Phase 9: Validation
 
 **Purpose:** Re-test everything that was auto-fixed to confirm no regressions.
@@ -1199,6 +1334,7 @@ Mark each finding as:
    - Run typecheck: pnpm typecheck (if available)
    - Run lint: pnpm lint (if available)
    - Run existing tests: pnpm test:run (if available)
+   - Run regression tests: pnpm vitest run __tests__/qa-regression/ (if generated in Phase 8.5)
    - ALL must pass. If any fail, identify which autofix caused the failure and revert it.
    ```
 
@@ -1298,12 +1434,22 @@ Mark each finding as:
 
 ## Auto-Fix Summary
 
-| # | Finding | Fix Applied | Build Status | Final Status |
-|---|---------|-------------|-------------|-------------|
-| QA-003 | Missing alt text | Added alt="" | ✅ Pass | FIXED |
-| QA-007 | Missing rel="noopener" | Added attribute | ✅ Pass | FIXED |
+| # | Finding | Fix Applied | Build Status | Regression Test | Final Status |
+|---|---------|-------------|-------------|-----------------|-------------|
+| QA-003 | Missing alt text | Added alt="" | ✅ Pass | ✅ attributes.test.ts:8 | FIXED |
+| QA-007 | Missing rel="noopener" | Added attribute | ✅ Pass | ✅ attributes.test.ts:22 | FIXED |
 
 **Total:** X issues auto-fixed, X deferred, X blocked
+**Regression tests generated:** X tests across Y files
+
+---
+
+## Regression Tests Generated
+
+| Finding ID | Test Description | Test File | Status |
+|-----------|-----------------|-----------|--------|
+| QA-003 | Hero image has alt attribute | `__tests__/qa-regression/attributes.test.ts:8` | ✅ PASS |
+| QA-007 | External links have rel="noopener" | `__tests__/qa-regression/attributes.test.ts:22` | ✅ PASS |
 
 ---
 
@@ -1349,12 +1495,20 @@ Mark each finding as:
 
 ## Screenshots
 
-All screenshots saved to: `.qatest-reports/screenshots/`
+All page screenshots saved to: `.qatest-reports/screenshots/`
+All finding evidence saved to: `.qatest-reports/evidence/`
 
 | Page | Desktop | Mobile | Tablet |
 |------|---------|--------|--------|
 | / | [homepage.png] | [homepage-mobile.png] | [homepage-tablet.png] |
 | /about | [about.png] | [about-mobile.png] | [about-tablet.png] |
+
+## Evidence (Before/After)
+
+| Finding ID | Before | After | Delta |
+|-----------|--------|-------|-------|
+| QA-003 | [QA-003-hero-before.png] | [QA-003-hero-after.png] | Added alt attribute |
+| QA-007 | [QA-007-footer-before.png] | [QA-007-footer-after.png] | Added rel="noopener" |
 
 ---
 
@@ -1376,6 +1530,8 @@ All screenshots saved to: `.qatest-reports/screenshots/`
 
 ## SITREP
 
+> Reference: [SITREP Standard](~/.claude/standards/SITREP_FORMAT.md) — use the unified template with domain-specific additions below.
+
 **Status:** [COMPLETE / PARTIAL / BLOCKED]
 **QA Score:** [XX/100] ([Grade])
 **Ship Decision:** [SHIP / SHIP WITH REVIEW / DO NOT SHIP]
@@ -1392,15 +1548,73 @@ All screenshots saved to: `.qatest-reports/screenshots/`
 
 ## DATA CLEANUP
 
-After all testing is complete, clean up any test data created during the QA run:
+> Reference: [Resource Cleanup Protocol](~/.claude/standards/CLEANUP_PROTOCOL.md) — Rules 6, 6a, and Ephemeral Artifact Policy
 
-1. **Form submissions:** If the skill submitted test forms (with `qatest_` prefix), note them in the report for manual cleanup if they went to a real database. The skill does NOT delete from databases directly — it documents what was created.
+After all testing is complete, clean up ALL resources created during the QA run. **Leave no trace.**
 
-2. **Browser state:** Close all browser tabs/contexts opened during testing via `browser_close`.
+### Test Data Deletion (MANDATORY — Rule 6a)
 
-3. **Dev server:** If the skill started a dev server, note it in the report. Do NOT kill it — the user may want it running.
+1. **Form submissions:** Query the database for ALL records with `qatest_` prefix and DELETE them.
+   ```sql
+   -- Delete test contact form submissions
+   DELETE FROM sm_contact_inquiries WHERE email LIKE 'qatest_%';
+   -- Delete test partnership inquiries
+   DELETE FROM sm_partnership_inquiries WHERE email LIKE 'qatest_%';
+   ```
+   - Verify: `SELECT count(*) ... WHERE email LIKE 'qatest_%'` must return 0
+   - If deletion fails: log exact records, include manual cleanup SQL in report
 
-4. **Test files:** No temporary test files are created (unlike COA 3). Nothing to clean up.
+2. **Test user accounts:** If any test accounts were created for auth flow testing, DELETE them.
+   - Use timestamped identifiers: `qatest_1711900800@example.com`
+   - Delete via admin API or direct DB query
+   - If undeletable: document prominently in SITREP with instructions
+
+### Browser & Process Cleanup
+
+3. **Browser state:** Close ALL Playwright browser instances via `browser_close`. Verify no orphaned Chromium processes remain.
+
+4. **Dev server:** If the skill started a dev server, kill it and verify the port is released.
+   - Exception: if user started the server before the skill, leave it running.
+
+### Screenshot & Artifact Cleanup
+
+5. **Page screenshots (non-evidence):** DELETE all screenshots in `.qatest-reports/screenshots/` that are NOT referenced as evidence in the report. Responsive screenshots, general page health screenshots — these served their purpose during analysis and are now waste.
+
+6. **Evidence screenshots (before/after):** KEEP — these are linked to specific findings in the report.
+
+7. **Route manifest:** DELETE `.qatest-reports/route-manifest.json` — it's regenerated each run.
+
+8. **State files from previous runs:** DELETE state files older than 24 hours.
+
+9. **Old screenshots from previous runs:** DELETE screenshots older than 7 days.
+
+### Cleanup Verification
+
+```bash
+# Verify test data deleted
+# SELECT count(*) FROM [tables] WHERE email LIKE 'qatest_%' → 0
+
+# Verify browser closed
+pgrep -f "chromium|playwright" | wc -l  # Should match pre-skill baseline
+
+# Verify port released (if dev server was started)
+lsof -ti:3000  # Should be empty (or match pre-skill state)
+
+# Verify no orphaned processes
+# Compare current process list against baseline captured at Phase 0
+```
+
+### Cleanup Report Section
+
+Add to the final report:
+```markdown
+## Cleanup
+- [x] Test data: [N] records deleted from [tables]
+- [x] Browser: closed, no orphaned processes
+- [x] Dev server: [stopped / was pre-existing, left running]
+- [x] Screenshots: [N] non-evidence screenshots deleted, [M] evidence kept
+- [x] State files: [N] old state files cleaned
+```
 
 ---
 
@@ -1513,10 +1727,15 @@ At startup, check for recent reports from:
 ├── qatest-YYYYMMDD-HHMMSS.md       # Main report
 ├── state-YYYYMMDD-HHMMSS.json      # State file (for resume)
 ├── route-manifest.json              # Discovered routes
-└── screenshots/                     # Page screenshots
-    ├── homepage.png
-    ├── homepage-mobile.png
-    ├── about.png
+├── screenshots/                     # Page screenshots (one per page per viewport)
+│   ├── homepage.png
+│   ├── homepage-mobile.png
+│   ├── about.png
+│   └── ...
+└── evidence/                        # Finding-linked evidence (before/after per finding)
+    ├── QA-003-hero-before.png
+    ├── QA-003-hero-after.png
+    ├── QA-007-footer-before.png
     └── ...
 ```
 
@@ -1555,6 +1774,26 @@ Cleanup verification:
 - Database query for `qatest_*` records should return 0
 
 ---
+
+## RELATED SKILLS
+
+**Feeds from:**
+- `/subagent-dev` - completed feature implementation goes straight to QA
+- `/test-ship` - test-ship covers unit/integration, qatest covers end-to-end UX and UAT
+- `/browse` - manual browsing surfaced issues that trigger a full QA pass
+
+**Feeds into:**
+- `/gh-ship` - QA GO verdict is the final gate before shipping
+- `/investigate` - QA findings that can't be auto-fixed get handed to investigate
+- `/launch` - QA is a required launch gate
+
+**Pairs with:**
+- `/a11y` - QA and a11y are both run as pre-ship gates; pair them
+- `/smoketest` - smoketest is the quick pre-flight, qatest is the thorough pre-ship gate
+
+**Auto-suggest after completion:**
+- `/gh-ship` - "QA passed. Ship it? Run /gh-ship."
+- `/investigate` - "Deferred findings logged. Root-cause the blockers? Run /investigate."
 
 ## REMEMBER
 

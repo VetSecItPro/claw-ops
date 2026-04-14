@@ -1,13 +1,5 @@
 ---
 description: Complete frontend design system — auto-detects what to do. No pages? Generates. Pages exist? Audits & improves. One command, premium results.
-## STATUS UPDATES
-
-This skill follows the **[Status Update Protocol](~/.claude/standards/STATUS_UPDATES.md)**.
-
-See standard for complete format. Skill-specific status examples are provided throughout the execution phases below.
-
----
-
 allowed-tools: Bash(ls *), Bash(cat *), Bash(head *), Bash(tail *), Bash(wc *), Bash(echo *), Bash(find *), Bash(grep *), Bash(jq *), Bash(npx *), Bash(npm *), Bash(pnpm *), Bash(yarn *), Bash(mkdir *), Bash(date *), Read, Write, Edit, Glob, Grep, Task, WebSearch, mcp__playwright__browser_navigate, mcp__playwright__browser_click, mcp__playwright__browser_resize, mcp__playwright__browser_take_screenshot, mcp__playwright__browser_snapshot, mcp__playwright__browser_evaluate, mcp__playwright__browser_close, mcp__playwright__browser_wait_for, mcp__playwright__browser_tabs
 ---
 
@@ -20,9 +12,62 @@ Type `/design` and the skill auto-detects what your project needs:
 - **Pages exist?** → Audits every screen, fixes safe issues, reports the rest
 - **Either path** → Governed by strict anti-slop design engineering standards
 
-Every invocation creates a timestamped report in `.design-reports/`. Every phase is checkpointed. Every decision is documented.
+Every invocation creates a timestamped session folder in `.design-reports/`. Every phase is checkpointed. Every decision is documented.
 
-**FIRE AND FORGET** — No permission prompts. No "should I proceed?" Just results.
+**FIRE AND FORGET** — No permission prompts. No "should I proceed?" Just results. (Exception: Phase 0 interview and Phase 2 plan gate are intentional user checkpoints.)
+
+---
+
+## Session Folder Structure
+
+Every run creates a timestamped session folder:
+
+```
+.design-reports/YYYYMMDD-HHMMSS-<slug>/
+  interview-answers.md     (Phase 0 - Socratic interview output)
+  research-notes.md        (Phase 1 - library research, if used)
+  plan.md                  (Phase 2 - approved design plan, live-updated)
+  deliverables/            (generated code references)
+  verification.md          (Phase 4 - plan vs delivered checklist)
+  axe-results.json         (accessibility scan output)
+  lighthouse/              (Lighthouse CI output)
+  sitrep.md                (Phase 5 - final SITREP)
+  evidence/                (before/after screenshots per finding)
+```
+
+`.design-reports/` MUST be in `.gitignore`. The setup step adds it automatically:
+```bash
+grep -q ".design-reports" .gitignore 2>/dev/null || echo ".design-reports/" >> .gitignore
+```
+
+---
+
+## DISCIPLINE
+
+> Reference: [Superpowers Discipline Protocol](~/.claude/standards/STEEL_DISCIPLINE.md)
+
+Key enforcements for this skill:
+- **Steel Principle #1:** NO completion claims without fresh verification evidence — take screenshots at every breakpoint and diff against the spec
+- **Steel Principle #4:** NO "looks good" without visual regression evidence (before/after screenshots)
+- Anti-slop standards are non-negotiable; generic templates are a failure mode
+
+### Design-Specific Rationalization Table
+
+| Rationalization | Reality | What to Do |
+|----------------|---------|------------|
+| "Desktop looks great, mobile is probably fine" | Mobile is where 60% of traffic lives; "probably fine" = "probably broken" | Screenshot 375px, 768px, 1440px every run |
+| "This is obvious, skip documenting the design decision" | Obvious to you, not to the next dev or the audit trail | Write the WHY into the design report |
+| "Close to the spec is good enough" | Typography, spacing, and color drift accumulate into a noisy UI | Measure against tokens; token or bust |
+| "I'll ship and iterate" | Live UX debt erodes trust; ship-and-iterate becomes ship-and-forget | Fix what's safe before ship, document deferred items |
+| "This template looks professional" | Generic templates are AI slop signals | Custom visual language per project; no stock patterns |
+
+---
+
+## STATUS UPDATES
+
+This skill follows the **[Status Update Protocol](~/.claude/standards/STATUS_UPDATES.md)**.
+
+See standard for complete format. Skill-specific status examples are provided throughout the execution phases below.
 
 ---
 
@@ -39,6 +84,10 @@ Every invocation creates a timestamped report in `.design-reports/`. Every phase
 /design --generate --template saas --components aceternity
 /design --generate --vibe ethereal-glass
 /design --generate --vibe editorial-luxury
+/design --generate --vibe industrial-dark
+/design --generate --vibe warm-agency
+/design --generate --vibe editorial-serif
+/design --generate --vibe soft-tech
 
 # Pull latest design trends before running
 /design --research
@@ -69,7 +118,14 @@ Every invocation creates a timestamped report in `.design-reports/`. Every phase
   │
   ▼
 ┌─────────────────────────────────────────────────────────────┐
-│  PHASE 0: DISCOVERY                                         │
+│  PHASE 0: SOCRATIC INTERVIEW                                │
+│  5 questions, one at a time. Saves interview-answers.md     │
+│  Output: Session folder + brief anchored to human intent    │
+└──────────────────────────┬──────────────────────────────────┘
+                           │
+                           ▼
+┌─────────────────────────────────────────────────────────────┐
+│  PHASE 1: DISCOVERY                                         │
 │  Detect stack, scan for pages/routes, determine path        │
 │  Output: Stack profile + routing decision + report file     │
 └──────────────────────────┬──────────────────────────────────┘
@@ -173,6 +229,93 @@ Pre-defined aesthetic directions. Select via `--vibe` flag or infer from project
 - **Typography:** Massive bold Grotesk headlines (`Cabinet Grotesk`, `Plus Jakarta Sans`), generous tracking
 - **Accent:** Singular muted accent, desaturated
 - **Motion:** Fluid layout transitions, magnetic interactions, staggered reveals
+
+### Industrial Dark (Developer Tools / B2B SaaS / Technical Products)
+- **Background:** `oklch(0.09 0.008 220)` (near-black with blue-steel undertone)
+- **Accent:** `oklch(0.62 0.14 215)` (electric steel blue)
+- **Typography:** Geist 800 display, Space Grotesk 400 body
+- **Surfaces:** `border border-white/[0.05]`, `bg-white/[0.03]` raised surfaces
+- **Motion:** Level 7 - staggered entrances, scroll-parallax, magnetic CTAs
+- **Best for:** Developer tools, B2B SaaS, technical products, CLIs, APIs
+
+### Warm Agency (Creative Agencies / Design Studios / Editorial)
+- **Background:** `oklch(0.12 0.005 30)` (warm near-black, charcoal with heat)
+- **Accent:** `oklch(0.65 0.17 35)` (burnished copper/bronze)
+- **Typography:** Cabinet Grotesk 800 display, Satoshi 400 body
+- **Surface:** Noise texture overlay at 0.03 opacity via SVG `feTurbulence`
+- **Motion:** Level 6 - text reveals, subtle parallax, no spring physics
+- **Best for:** Creative agencies, design studios, editorial sites, portfolios
+
+### Editorial Serif (Content Sites / Personal Brands / Long-Form)
+- **Background:** `oklch(0.97 0.015 85)` (cream)
+- **Accent:** `oklch(0.45 0.18 15)` (deep coral)
+- **Typography:** Instrument Serif 400-700 variable + Satoshi 400 body
+- **Surfaces:** Paper-textured, minimal borders, no elevation shadows
+- **Motion:** Level 4 - content-focused, minimal interference, no spring
+- **Best for:** Content-heavy sites, personal brands, long-form writing, journals
+
+### Soft Tech (Modern SaaS / Fintech / Productivity Tools)
+- **Background:** `oklch(0.98 0.003 240)` (off-white with subtle blue tint)
+- **Accent:** `oklch(0.55 0.18 260)` (electric indigo)
+- **Typography:** Geist 700 display, Geist 400 body
+- **Surface:** `shadow-lg shadow-indigo-500/10` elevation, `bg-white rounded-xl`
+- **Motion:** Level 5 - layout animations, subtle parallax, entrance reveals
+- **Best for:** Modern SaaS, fintech, productivity tools, consumer apps
+
+> **Archetype Selection:** User can pick one by name or describe a custom archetype. If user describes something not matching any archetype, treat it as custom and document the tokens explicitly. NEVER assume project context - a user describing "dark and technical" is not implying any specific company or product category.
+
+---
+
+## 2.5 UI Library Catalogue (Always Loaded)
+
+The component library landscape moves fast. This is the current baseline catalogue as of 2026. When in doubt about what to use, refer here first.
+
+### Aceternity UI — `ui.aceternity.com`
+Premium animated heroes and dramatic effects. Best for landing pages that need to make an immediate impression.
+- **Top components:** BackgroundBeams, HeroParallax, Tracing Beam, Lamp Effect, Bento Grid, Wobble Card
+- **Install:** `npx shadcn@latest add @aceternity/<name>`
+- **When:** Landing page with dramatic hero, product showcase that needs depth
+
+### Magic UI — `magicui.design`
+Statistics, marquees, and subtle perpetual animations. Lightweight and elegant.
+- **Top components:** NumberTicker, AnimatedShinyText, BorderBeam, Marquee, Globe, Particles
+- **Install:** `npx magicui-cli@latest add <name>` or copy-paste from docs
+- **When:** Stats sections, social proof bars, subtle ambient motion
+
+### Kokonut UI — `kokonutui.com`
+Dashboard components, glass effects, premium data display patterns.
+- **Top components:** Glass cards, stat widgets, command inputs, premium buttons
+- **Install:** `npx shadcn@latest add @kokonutui/<name>`
+- **When:** Dashboards, app UIs, data-dense interfaces
+
+### Cult UI — `cult-ui.com`
+Texture overlays, pixel-retro accents, shift cards. Creative and distinctive.
+- **Top components:** Shift Card, Texture Button, Pixel Grid, Noise Card
+- **License:** Free MIT + Pro tier
+- **When:** Marketing creative, agencies, editorial, anything that needs tactile grit
+
+### Motion Primitives — `motion-primitives.com`
+Pure Framer Motion building blocks. Copy-paste composable primitives.
+- **Install:** Copy-paste directly from docs
+- **When:** Custom animations built from scratch, when Aceternity is too opinionated
+
+### shadcn/ui — `ui.shadcn.com` (MANDATORY BASE)
+The default system for all production work. Everything else layers on top.
+- **Critical components:** Sidebar, Command (cmdk), Chart (Recharts wrapper)
+- **Install:** `pnpm dlx shadcn@latest add <component>`
+
+> **The shadcn trap:** Default shadcn looks like default shadcn. The radius, color, and shadow tokens MUST be customized. Shipping with `--radius 0.5rem` and zinc defaults is a slop signal (see S9).
+
+### Selection Guidance
+
+| Use case | Library |
+|----------|---------|
+| Landing page + dramatic hero | Aceternity |
+| Stats or social proof section | Magic UI |
+| Dashboard or app UI | Kokonut + shadcn |
+| Marketing creative or agency | Cult UI |
+| Custom animation primitives | Motion Primitives |
+| Everything (as base) | shadcn - customized |
 
 ---
 
@@ -540,9 +683,57 @@ Every piece of UI text must be: **Purposeful → Concise → Conversational → 
 
 ---
 
-## 14. Forbidden Patterns — AI Tells (Comprehensive)
+## 14. AI Slop Blacklist — Scored Detection System
 
 These make output look AI-generated. STRICTLY avoid unless explicitly requested.
+
+### The 10 Named Slop Patterns (Each Scored Independently)
+
+Every audit MUST check for these 10 specific patterns. Each gets a PASS/FAIL. The aggregate becomes the **AI Slop Score** (A-F), reported independently from the Design Score.
+
+| # | Pattern Name | Detection Rule |
+|---|-------------|---------------|
+| S1 | **Purple Gradient Plague** | Purple/violet/indigo gradient backgrounds or blue-to-purple color schemes anywhere |
+| S2 | **Triple Card Grid** | 3-column feature grid: icon-in-circle + bold title + 2-line description, repeated 3× |
+| S3 | **Circle Icon Soup** | Icons placed inside colored circles as decoration (not functional indicators) |
+| S4 | **Center Everything** | All content centered with no intentional alignment variation |
+| S5 | **Bubbly Radius** | Uniform large border-radius on every element (no radius hierarchy) |
+| S6 | **Blob Dividers** | Decorative blobs, wavy section dividers, or organic shape separators |
+| S7 | **Emoji Decoration** | Emojis used as design elements, section markers, or list bullets |
+| S8 | **Colored Left Border** | Cards with thick colored left borders as the primary visual differentiator |
+| S9 | **Generic Hero Copy** | Headlines containing "Unlock the power of...", "Transform your...", "Seamless...", "Next-generation..." |
+| S10 | **Cookie-Cutter Rhythm** | Predictable section flow: Hero → 3 Features → Testimonials → Pricing → CTA |
+
+### Extended Slop Patterns S11-S25 (Added 2026)
+
+| # | Pattern Name | Detection Rule |
+|---|-------------|---------------|
+| S11 | **Lottie Animation Abuse** | `@lottiefiles/react-lottie-player` imports — use custom SVG animation instead |
+| S12 | **Gradient Text H1** | `bg-clip-text text-transparent bg-gradient-to-r` applied to main hero H1 |
+| S13 | **Glassmorphism Without Context** | `backdrop-blur` over solid (non-layered) backgrounds — no visual reason for the blur |
+| S14 | **Hero CTA Pair** | Primary button + secondary "Learn More" side-by-side in hero — pick one or make them meaningfully different |
+| S15 | **Generic Bento Grid** | Every bento cell identical height with icon + title + description pattern |
+| S16 | **Floating Island Navbar** | `fixed top-4 rounded-full` pill navbar without purposeful design justification |
+| S17 | **Dark/Light/Dark Rhythm** | Predictable 3-act section rhythm: dark hero, light features, dark footer |
+| S18 | **Fake Testimonial Cards** | 3-column grid of avatar + star rating + quote template with generic names |
+| S19 | **Solo Logo Marquee** | Scrolling logo marquee as its own standalone section with no surrounding context |
+| S20 | **Auto-Play Video Hero** | Background video autoplay without a functional purpose or user control |
+| S21 | **Status Dot Decoration** | Green pulsing dot decoration with no actual live data behind it |
+| S22 | **Over-Rounded Nesting** | `rounded-3xl` container nesting `rounded-3xl` children - no radius hierarchy |
+| S23 | **Zigzag Feature Repeat** | Image-left-text-right alternating pattern repeated more than twice |
+| S24 | **Decoration Stars/Sparkles** | Star or sparkle SVG decorations used as visual flair (already banned in CLAUDE.md) |
+| S25 | **Generic Popular Badge** | "Most Popular" `rounded-full` badge on middle pricing tier with no visual differentiation |
+
+**AI Slop Score Calculation (S1-S25 combined):**
+- A: 0 patterns detected (Slop-Free)
+- B: 1 pattern detected (Minor slip)
+- C: 2-3 patterns detected (Needs attention)
+- D: 4-5 patterns detected (Significant AI influence)
+- F: 6+ patterns detected (Looks auto-generated)
+
+This score is INDEPENDENT of the Design Score. A site can score A on Design but D on Slop (beautiful execution of generic patterns).
+
+### Additional AI Tells (Comprehensive)
 
 ### Visual & CSS
 - NO neon/outer glows — use inner borders or tinted shadows
@@ -705,6 +896,67 @@ For SaaS dashboards and feature sections — "Bento 2.0":
 3. **Live Status** — breathing indicators + overshoot spring badge
 4. **Wide Data Stream** — infinite horizontal carousel
 5. **Contextual UI** — staggered highlight + float-in toolbar
+
+---
+
+## 17.5 Dashboard Patterns
+
+Dashboards have distinct design rules from landing pages. Apply these when `VISUAL_DENSITY >= 6` or when the project is clearly an application UI.
+
+### Sidebar
+
+- Use `shadcn SidebarProvider` as the structural wrapper
+- Default width: `w-[240px]`, collapsed state: `w-[56px]`
+- Workspace switcher with avatar in the sidebar header
+- Collapsible nav groups with animated chevron (`rotate-180` on open)
+- Active state: `bg-accent/10 text-accent border-s-2 border-accent` - NOT solid fill
+- Icon size: 16px (not 20px - denser, more mature, matches text rhythm)
+- Section labels: `text-[10px] uppercase tracking-[0.12em] text-muted-foreground/60 font-medium`
+
+### Data Density Rules
+
+| VISUAL_DENSITY | Card Style | Padding | Border Style |
+|----------------|-----------|---------|-------------|
+| < 6 | Cards with shadow | `p-6 rounded-xl shadow-sm` | `border border-border` |
+| 6-8 | Borderless muted | `p-4 rounded-lg bg-muted/30` | No border |
+| > 8 | Row-based | `py-3 px-4 divide-y divide-border/50` | Dividers only |
+
+At DENSITY > 8: use `font-variant-numeric: tabular-nums` on ALL numbers. `font-mono` for IDs, codes, counts.
+
+### Chart Library
+
+- **Use:** shadcn Charts (Recharts wrapper). Install: `pnpm dlx shadcn@latest add chart`
+- **Grid styling:** Make grid nearly invisible:
+  ```css
+  .recharts-cartesian-grid line {
+    stroke: oklch(0.85 0 0 / 0.5);
+    stroke-dasharray: none;
+  }
+  ```
+- **Avoid:**
+  - Tremor - fights design system, opinionated styling
+  - Chart.js - 2015 aesthetic, heavy for React
+  - Nivo - bundle too heavy for most apps
+
+### Empty States (4-Layer Required)
+
+Every empty state MUST have all 4 layers:
+1. **Custom SVG illustration** - NOT Lottie, NOT a generic icon
+2. **Specific title** - "No agents in this workspace yet" not "No data yet"
+3. **Body text** - explain the next step specifically ("Create your first agent to start routing tasks")
+4. **Primary CTA button** - action verb, links to the create/add action
+
+Never use a blank container as an empty state. Never use a generic "No results found" message.
+
+### Command Palette (2026 Expectation for Premium SaaS)
+
+Users expect `cmd+k` in any serious app. If the app has 5+ navigation destinations or 3+ actions, add it.
+
+- **Component:** cmdk via shadcn Command
+- **Global handler:** `cmd+k` (Mac) / `ctrl+k` (Windows/Linux)
+- **Group structure:** "Recent", "Navigation", "Actions"
+- **Keyboard badges:** `font-mono text-xs bg-muted rounded px-1.5` right-aligned
+- **Install:** `pnpm dlx shadcn@latest add command`
 
 ---
 
@@ -1266,13 +1518,91 @@ export default function Dashboard() {
 
 ---
 
-# PHASE 0: DISCOVERY
+# PHASE 0: SOCRATIC INTERVIEW
+
+**Trigger:** Run this phase FIRST on every `/design` invocation before any detection or code work.
+
+The design brief belongs to the person building the product, not to the model. This phase extracts it.
+
+**Interview Rules:**
+- Ask one question at a time. Wait for the answer before asking the next.
+- Open-ended questions only. NOT multiple choice. NOT "A, B, or C?" Just ask.
+- Do not ask follow-up questions more than 1 deep. If the answer is incoherent, ask ONE clarifying question, then move on.
+- Do not skip questions or batch them together.
+- Do not editorialize or comment on answers. Absorb and continue.
+- When all 5 answers are collected, save them and proceed to Phase 1 automatically.
+
+**The 5 Questions (ask in this exact order):**
+
+1. "What is this? Who uses it? What's the one thing they should feel when they land?"
+2. "What does it look like in your head? Any sites that make you jealous?"
+3. "What's the one action you need them to take?"
+4. "What would make this embarrassing to ship? What screams AI-generated to you?"
+5. "What's off-limits? Any colors, styles, vibes, or patterns to avoid?"
+
+**After collecting all 5 answers:**
+
+```bash
+mkdir -p .design-reports
+TIMESTAMP=$(date +"%Y%m%d-%H%M%S")
+SESSION_DIR=".design-reports/${TIMESTAMP}-<slug>"
+mkdir -p "$SESSION_DIR/deliverables"
+```
+
+Save answers to `$SESSION_DIR/interview-answers.md`:
+
+```markdown
+# Interview Answers - {{product_name}}
+Date: {{date}}
+
+## Q1: What is this? Who uses it? One feeling?
+{{answer}}
+
+## Q2: Visual reference / sites that inspire jealousy?
+{{answer}}
+
+## Q3: The one action they need to take?
+{{answer}}
+
+## Q4: What would make this embarrassing? AI-generated tells?
+{{answer}}
+
+## Q5: Off-limits - colors, styles, vibes, patterns?
+{{answer}}
+```
+
+Add `.design-reports/` to `.gitignore` if not already present:
+```bash
+grep -q ".design-reports" .gitignore 2>/dev/null || echo ".design-reports/" >> .gitignore
+```
+
+These answers feed directly into Phase 2 plan writing. The vibe archetype, color palette, CTA strategy, and anti-slop decisions MUST be traceable to the interview answers.
+
+---
+
+# PHASE 1: DISCOVERY
 
 The entry point. Determines everything that happens next.
 
 ---
 
-## 0.1 Detect Project Stack
+## 1.0 Library Research (Optional)
+
+At the start of Phase 1, offer the user:
+
+> "Want me to research current top-of-the-line UI libraries? The scene changes fast, might be new ones beyond my baseline catalogue."
+
+If user accepts: run `WebSearch` for "best Tailwind React UI component libraries 2026" and surface findings. Save to `$SESSION_DIR/research-notes.md`.
+
+---
+
+## 1.0A Design Reference Scraping (Optional)
+
+If the user mentions design inspiration from specific external sites during Phase 0 - for example, "make it look like Linear's marketing site" or "I want the feel of Vercel's dashboard" - optionally invoke `/scrape` on those pages to fetch their content for reference. Pass the scraped markdown to the session folder as `$SESSION_DIR/design-references/[site-slug].md`. This gives the design analysis concrete reference material rather than relying on memory or general knowledge about how those sites look. Use only for public, non-authenticated pages; if the reference site requires a login, skip it and note the limitation.
+
+---
+
+## 1.1 Detect Project Stack
 
 ```bash
 # Package manager
@@ -1295,11 +1625,11 @@ else PM="npm"; fi
 | Icons | Lucide / Heroicons / Phosphor | Detected library |
 | Breakpoints | Custom screens config or defaults | sm/md/lg/xl/2xl |
 
-## 0.2 Scan for Pages/Routes
+## 1.2 Scan for Pages/Routes
 
 Framework-specific route discovery. Count pages and components.
 
-## 0.3 Route Decision
+## 1.3 Route Decision
 
 ```
 IF --generate flag → GENERATION PATH
@@ -1307,22 +1637,23 @@ ELSE IF page count == 0 → GENERATION PATH
 ELSE → AUDIT PATH
 ```
 
-## 0.4 Create Report File
+## 1.4 Create Report File
 
 Every invocation creates a report:
 ```bash
-mkdir -p .design-reports
 TIMESTAMP=$(date +"%Y%m%d-%H%M%S")
-REPORT_FILE=".design-reports/${PATH_TYPE}-${TIMESTAMP}.md"
+SESSION_DIR=".design-reports/${TIMESTAMP}-<slug>"
+mkdir -p "$SESSION_DIR/deliverables"
+REPORT_FILE="$SESSION_DIR/plan.md"
 ```
 
 Ensure `.design-reports/` in `.gitignore`. Write header immediately.
 
-## 0.5 Resume Protocol
+## 1.5 Resume Protocol
 
 If recent (<1hr) incomplete report exists: read it, check Status, resume from next step.
 
-## 0.6 Trend Research (Optional — `--research` flag)
+## 1.6 Trend Research (Optional — `--research` flag)
 
 Parallel web searches for latest design trends, component libraries, animation patterns, performance standards. Cross-reference against Design Brain standards. Cache for session.
 
@@ -1336,16 +1667,104 @@ Triggered when pages/routes exist.
 
 ## Phase 1A: ASSESS
 
-### 1A.1 Enumerate Routes & Components
+### 1A.1 First Impression Audit (5-Second Test)
+
+Before any detailed analysis, visit the homepage (and 2 key pages) and capture the gut reaction. This phase uses browser screenshots and evaluates what a first-time visitor perceives in the first 5 seconds.
+
+**For each page (homepage + 2 highest-traffic pages):**
+1. Navigate to page, wait for full load
+2. Take screenshot
+3. Record:
+   - **Gut reaction** — One sentence: what does this feel like? (e.g., "Corporate SaaS template", "Premium editorial", "Unfinished prototype")
+   - **Focal point** — Where does the eye land first? Is it intentional?
+   - **One-word verdict** — Pick ONE: `Premium` | `Professional` | `Generic` | `Cluttered` | `Unfinished` | `Distinctive` | `Polished`
+   - **Brand clarity** — Can you tell what company/product this is within 3 seconds? YES/NO
+   - **Action clarity** — Is the primary CTA obvious within 3 seconds? YES/NO
+4. **First Impression Score:** A (Distinctive, clear brand + action) / B (Professional, minor issues) / C (Generic, could be any company) / D (Confusing or cluttered) / F (Broken or unfinished)
+
+This phase sets the context for everything that follows. A site scoring C or lower on First Impression likely has fundamental design direction problems that detailed fixes won't solve.
+
+### 1A.2 Design System Extraction from Live CSS
+
+Use the running dev server + browser to extract the **de facto** design system — what's actually rendered, not just what's in the code tokens. This catches divergence between declared tokens and rendered output.
+
+**Steps:**
+1. Navigate to 3-5 key pages via Playwright MCP
+2. Use `browser_evaluate` to extract computed styles:
+   ```javascript
+   // Extract all unique font families actually rendered
+   const fonts = new Set();
+   document.querySelectorAll('*').forEach(el => {
+     fonts.add(getComputedStyle(el).fontFamily);
+   });
+   
+   // Extract all unique colors actually used
+   const colors = new Set();
+   document.querySelectorAll('*').forEach(el => {
+     const s = getComputedStyle(el);
+     colors.add(s.color); colors.add(s.backgroundColor);
+   });
+   
+   // Extract spacing patterns (padding/margin values)
+   // Extract border-radius values
+   // Extract shadow values
+   ```
+3. Build a **Rendered Design System Map:**
+   - **Fonts in use:** List all font families actually rendered (compare against declared tokens)
+   - **Color palette (actual):** All unique colors rendered (compare against OKLCH tokens)
+   - **Spacing scale (actual):** All padding/margin values in use (compare against 8pt grid)
+   - **Radius scale (actual):** All border-radius values (check for hierarchy)
+   - **Shadow scale (actual):** All box-shadow values (check for consistency)
+4. **Divergence detection:** Flag any rendered values that don't match declared CSS tokens. This catches:
+   - Hardcoded hex colors bypassing the token system
+   - Raw pixel spacing not on the 8pt grid
+   - Font families loaded but not in the declared stack
+   - Inconsistent radius values (no clear hierarchy)
+
+Output: Rendered Design System Map written to report, divergence findings added as DES-XXX findings.
+
+### 1A.3 Enumerate Routes & Components
 Discover all pages, categorize all components (Layout, Modal, Form, Data, Feedback, Navigation).
 
-### 1A.2 Map Responsive Coverage
+### 1A.4 Map Responsive Coverage
 Classify each component: Full (3+bp) / Partial (1-2bp) / None.
 
-### 1A.3 Build Route Viewport Matrix
+### 1A.4a Build Route Viewport Matrix
 Score every route at Mobile / Tablet / Desktop. **Tablet gap detection:** if `md:` usage < 30% of `sm:`, flag missing tablet optimization.
 
-### 1A.4 Run 14-Domain Design Scan (5 Parallel Agents)
+### 1A.4b Component State Completeness Matrix
+
+Before the full scan, run a static grep across all component files to check state coverage. Output a matrix showing which components are missing which states.
+
+```bash
+# Find all component files
+find src/components -name "*.tsx" -o -name "*.jsx" | head -50
+
+# For each component, check for state keywords
+grep -l "hover:" src/components/**/*.tsx  # hover state
+grep -l "focus-visible:" src/components/**/*.tsx  # focus state
+grep -l "active:" src/components/**/*.tsx  # active/pressed state
+grep -l "disabled:" src/components/**/*.tsx  # disabled state
+grep -l "loading\|skeleton\|isLoading" src/components/**/*.tsx  # loading state
+grep -l "empty\|isEmpty\|no.*result" src/components/**/*.tsx  # empty state
+grep -l "error\|isError\|hasError" src/components/**/*.tsx  # error state
+grep -l "success\|isSuccess" src/components/**/*.tsx  # success state
+```
+
+Output matrix (add to report as DES-STATE-NNN findings for any MISSING states):
+
+```
+Component State Matrix:
+Component              | hover | focus | active | disabled | loading | empty | error | success
+-----------------------|-------|-------|--------|----------|---------|-------|-------|--------
+Button                 |  YES  |  YES  |  YES   |   YES    |   YES   |  n/a  |  n/a  |  n/a
+Card                   |  YES  |  YES  |   NO   |   n/a    |   YES   |  YES  |  YES  |  n/a
+DataTable              |   NO  |  YES  |   NO   |   n/a    |   YES   |  YES  |   NO  |  n/a
+```
+
+Any MISSING state (not n/a) → DES-STATE-NNN finding (severity: MEDIUM). Auto-fix safe ones (hover, active, focus). Defer complex ones (empty, error requiring content decisions).
+
+### 1A.4c Run 14-Domain Design Scan (5 Parallel Agents)
 
 Each finding gets a DES-XXX ID. After each domain: add to findings table, update progress log, write to disk.
 
@@ -1376,7 +1795,32 @@ White space/hierarchy, 5-state audit on every interactive element, emotional des
 - Fluid: fixed spacing where `clamp()` should be used
 - Component API: props count > 7 (needs compound pattern)
 
-### 1A.5 10-Dimension Design Scoring
+### 1A.5 Fixed-Point Litmus Tests (Quality Gates)
+
+Before detailed scoring, run these 7 binary YES/NO checks. These are fast, decisive, cross-model-consensus checks that catch fundamental design failures no checklist can.
+
+| # | Litmus Test | YES = Pass | NO = Immediate Flag |
+|---|------------|------------|-------------------|
+| L1 | **Brand unmistakable in first screen?** | Brand identity is clear within 3 seconds | Generic template feel — could be any company |
+| L2 | **One strong visual anchor present?** | Page has a dominant focal point (image, headline, or graphic) | Eye wanders with no landing point |
+| L3 | **Page understandable by scanning headlines only?** | H1→H2→H3 tells a coherent story | Must read body text to understand page purpose |
+| L4 | **Each section has exactly one job?** | Every section serves a distinct purpose | Sections repeat the same message in different words |
+| L5 | **Are cards actually necessary?** | Cards group genuinely related content | Cards used as default container with no grouping purpose |
+| L6 | **Does motion improve hierarchy or atmosphere?** | Animations guide attention or create mood | Motion is decorative or distracting — no purpose |
+| L7 | **Would removing all decorative shadows improve it?** | Shadows contribute to depth hierarchy | Shadows are applied uniformly or excessively |
+
+**Hard Rejection Criteria (any one = automatic D or lower Design Score):**
+- Generic SaaS card grid as first impression
+- Beautiful imagery with weak/absent brand identity
+- Strong headline with no clear next action
+- Busy imagery behind text (unreadable)
+- Sections repeating the same mood statement
+- Carousel with no narrative purpose
+- App UI built entirely from stacked cards
+
+**Scoring impact:** Each failed litmus test applies a -5 penalty to the overall Design Score. Hard rejection criteria cap the score at 69 (D grade) regardless of other dimensions.
+
+### 1A.6 10-Dimension Design Scoring
 
 Score the project across 10 dimensions (0-10 each):
 
@@ -1393,7 +1837,7 @@ Score the project across 10 dimensions (0-10 each):
 | 9. Performance | LCP, CLS, image optimization, lazy loading |
 | 10. Anti-Slop Compliance | AI Tell violations, forbidden pattern count |
 
-**Overall = average of 10 dimensions, mapped to grade:**
+**Design Score = average of 10 dimensions (adjusted by litmus test penalties), mapped to grade:**
 - 90-100: A+ (Award-Worthy)
 - 80-89: A (Premium Production)
 - 70-79: B (Professional)
@@ -1401,15 +1845,147 @@ Score the project across 10 dimensions (0-10 each):
 - 50-59: D (Needs Work)
 - Below 50: F (Significant Issues)
 
-### 1A.6 Conversion Scoring (Landing/Marketing Pages)
+**AI Slop Score (INDEPENDENT — see Section 14 for calculation):**
+- A: 0 patterns detected (Slop-Free)
+- B: 1 pattern detected
+- C: 2-3 patterns detected
+- D: 4-5 patterns detected
+- F: 6+ patterns detected
+
+**Dual Score Display (always shown together):**
+```
+Design Score: 82/100 (A)    |    AI Slop Score: B (1 pattern detected: S2 Triple Card Grid)
+```
+
+A site can score well on design but poorly on slop (beautiful execution of generic patterns) or vice versa (ugly but original). Both scores must be A or B to earn a "SHIP" recommendation.
+
+### 1A.7 80-Item Granular Checklist (10 Categories × 8 Items)
+
+In addition to the 14-domain scan (1A.4), apply this structured checklist. Each item is a specific, verifiable check — not a subjective assessment. Items that overlap with 1A.4 domains reinforce rather than duplicate (different angle, same finding).
+
+**Category 1: Visual Hierarchy & Composition (8 items)**
+- [ ] Clear focal point on every page (squint test)
+- [ ] Intentional visual flow (F-pattern or Z-pattern)
+- [ ] No competing elements at same visual weight
+- [ ] Appropriate information density for page purpose
+- [ ] Correct z-index layering (no overlap conflicts)
+- [ ] Above-fold content delivers value proposition
+- [ ] Whitespace used intentionally (not just padding)
+- [ ] Visual noise minimized (< 5 distinct visual elements competing)
+
+**Category 2: Typography (8 items)**
+- [ ] Max 2 font families loaded
+- [ ] Consistent type scale ratio (1.25, 1.333, or 1.5)
+- [ ] Line-height appropriate per size (headings tight, body relaxed)
+- [ ] Text measure 45-75 characters for body
+- [ ] Heading hierarchy sequential (no skipping levels)
+- [ ] Weight contrast intentional (not random bold)
+- [ ] No banned fonts (Inter, Roboto, Arial, Open Sans)
+- [ ] Minimum 16px body text on mobile
+
+**Category 3: Color & Contrast (8 items)**
+- [ ] Palette coherent (single hue family or intentional complementary)
+- [ ] All text meets WCAG AA 4.5:1 contrast
+- [ ] No color-only encoding of information
+- [ ] Dark mode surfaces follow elevation hierarchy
+- [ ] Accent color desaturated appropriately per context
+- [ ] `color-scheme` declared in CSS
+- [ ] Colorblind-safe (test with simulator)
+- [ ] Warm/cool temperature consistent across palette
+
+**Category 4: Spacing & Layout (8 items)**
+- [ ] Grid system consistent (8pt or defined scale)
+- [ ] Alignment snaps to grid (no arbitrary offsets)
+- [ ] Vertical rhythm maintained across sections
+- [ ] Border-radius hierarchy (cards > buttons > inputs > badges)
+- [ ] Nested radius follows inner = outer - padding rule
+- [ ] No horizontal scroll at any viewport
+- [ ] Max-width set on content containers
+- [ ] `safe-area-inset` applied for notched devices
+
+**Category 5: Interaction States (8 items)**
+- [ ] Hover state on every interactive element
+- [ ] `focus-visible` ring on every focusable element
+- [ ] Active/pressed state feedback (scale or color change)
+- [ ] Disabled state visually distinct and non-interactive
+- [ ] Loading state for every async operation
+- [ ] Empty state with helpful message + action
+- [ ] Error state with specific recovery guidance
+- [ ] Touch targets >= 44px on mobile
+
+**Category 6: Responsive Design (8 items)**
+- [ ] Mobile layout is intentional (not just stacked desktop)
+- [ ] Touch targets appropriately sized at mobile viewport
+- [ ] No horizontal overflow at 320px width
+- [ ] Images scale appropriately (no cropping key content)
+- [ ] Text remains readable at all viewports
+- [ ] Navigation collapses appropriately for mobile
+- [ ] Forms usable on mobile (no tiny inputs)
+- [ ] Viewport meta tag present and correct
+
+**Category 7: Motion & Animation (8 items)**
+- [ ] All animations have clear purpose (guide attention or provide feedback)
+- [ ] `prefers-reduced-motion` respected (disables or reduces all motion)
+- [ ] Transition properties explicitly listed (not `transition: all`)
+- [ ] Only `transform` and `opacity` animated (GPU-composited)
+- [ ] Entrance durations 150-300ms, exit 100-200ms
+- [ ] Easing direction correct (ease-out for entrances, ease-in for exits)
+- [ ] No infinite animations without user control
+- [ ] Spring physics used where appropriate (not just linear/ease)
+
+**Category 8: Content & Microcopy (8 items)**
+- [ ] Empty states designed (not blank containers)
+- [ ] Error messages specific and actionable
+- [ ] Button labels use specific action verbs (not "Submit" or "OK")
+- [ ] No placeholder/lorem ipsum text in production
+- [ ] Text truncation handled gracefully (ellipsis + tooltip or expand)
+- [ ] Active voice used throughout UI copy
+- [ ] Loading states have punctuation (not just spinner)
+- [ ] Destructive actions require confirmation
+
+**Category 9: AI Slop Detection (25 items — see Section 14)**
+- [ ] S1-S10 pattern check (see AI Slop Blacklist — original 10)
+- [ ] S11-S25 pattern check (see Extended Slop Patterns)
+
+**Category 10: Performance as Design (8 items)**
+- [ ] LCP < 2.5s on key pages
+- [ ] CLS < 0.1 (no layout shifts)
+- [ ] Skeleton loaders match actual content dimensions
+- [ ] Images optimized (WebP/AVIF, correct sizes attribute)
+- [ ] `font-display: swap` or `optional` set
+- [ ] No FOUT (flash of unstyled text) visible
+- [ ] `content-visibility: auto` on long below-fold sections
+- [ ] Hero images use `fetchpriority="high"`
+
+### 1A.7a Cross-Page Consistency Audit
+
+Dedicated pass evaluating design consistency ACROSS all pages as a unified system, not just per-page quality. This catches issues invisible when auditing pages individually.
+
+**Agent:** `sonnet` — Consistency Auditor (reads all page screenshots + rendered design system map)
+
+**Checks:**
+1. **Navigation consistency** — Same nav structure, order, and active state treatment on every page
+2. **Component reuse** — Same component rendered identically across pages (e.g., cards don't have different radius/shadow on different pages)
+3. **Typography consistency** — Same heading levels render at same size/weight/color across pages
+4. **Color consistency** — Same semantic colors used for same purposes (e.g., primary CTA always same color)
+5. **Spacing consistency** — Section padding consistent across pages (not 64px on one page, 96px on another)
+6. **Tone consistency** — Microcopy maintains same voice (formal vs casual doesn't shift between pages)
+7. **Rhythm consistency** — Section cadence follows a pattern (not random ordering of hero/features/testimonials)
+8. **Footer/header parity** — Same treatment on every page (no orphan pages with different layout)
+
+**Scoring:** Each inconsistency found is a DES-XXX finding (severity: MEDIUM). 3+ inconsistencies across pages triggers a Dimension 5 (Visual Consistency) penalty of -2 points.
+
+**Evidence:** Side-by-side screenshot comparisons of the same component across different pages, annotated with differences.
+
+### 1A.8 Conversion Scoring (Landing/Marketing Pages)
 
 If landing pages exist, also score Hero (0-100), CTA (0-100), Social Proof (0-100), Performance (0-100).
 
-### 1A.7 Smart Adaptation Analysis
+### 1A.9 Smart Adaptation Analysis
 
 Per-route adaptation plans (Desktop → Mobile → Tablet per element) and component-level recommendations.
 
-### 1A.8 Generate Prioritized Task List
+### 1A.10 Generate Prioritized Task List
 
 Critical → High → Medium → Low. Write to report.
 
@@ -1443,8 +2019,42 @@ Auto-fix safe issues. No pause. Severity order.
 ### Deferred (Needs Design Decision)
 Modal → bottom sheet, sidebar → mobile nav, table → card stack, design system unification, onboarding flow, dark mode elevation rework
 
+### Fix Risk Self-Regulation
+
+Design fixes can cascade unpredictably — a CSS change here breaks layout there. Track cumulative risk and STOP before causing more harm than good.
+
+**Risk budget starts at 0%. Stop fixing when risk exceeds 20%. Hard cap: 30 fixes per run.**
+
+| Action | Risk Cost |
+|--------|----------|
+| CSS-only file change | +0% |
+| JSX/TSX component file change | +5% |
+| Fix requiring changes in 2+ files | +8% |
+| Any revert (fix broke something) | +15% |
+| Each fix after the 10th | +1% additional |
+| Touching a file NOT in the finding's scope | +20% (stop immediately) |
+
+**When risk budget exceeded:**
+1. Log remaining unfixed findings as DEFERRED (reason: "Risk budget exceeded")
+2. Report cumulative risk score in SITREP
+3. Recommend running `/design` again after reviewing the batch of fixes already applied
+
+### Before/After Screenshot Evidence
+
+Every fix MUST be accompanied by visual proof:
+1. **Before:** Screenshot the page/component in its broken state → `.design-reports/evidence/DES-NNN-before.png`
+2. Apply the fix
+3. **After:** Screenshot the same view → `.design-reports/evidence/DES-NNN-after.png`
+4. Both screenshots referenced in the finding's detail section in the report
+
+For CSS-only fixes that affect multiple pages, capture before/after on the PRIMARY affected page only (to avoid screenshot explosion).
+
 ### Fix Cycle
-1. Update status → FIXING → apply fix → verify build → FIXED or BLOCKED → write checkpoint
+1. Check risk budget → if exceeded, skip to DEFERRED
+2. Take before screenshot → `.design-reports/evidence/DES-NNN-before.png`
+3. Update status → FIXING → apply fix → verify build
+4. Take after screenshot → `.design-reports/evidence/DES-NNN-after.png`
+5. FIXED or BLOCKED → update risk budget → write checkpoint
 
 ---
 
@@ -1469,13 +2079,18 @@ Triggered when no pages exist, or `--generate` flag set.
 
 ### 1B.2 Vibe Selection
 
-Via `--vibe` flag or infer from project:
+Via `--vibe` flag or infer from project context and interview answers:
 - **ethereal-glass** → Dark, glassy, tech (see Vibe Archetypes)
 - **editorial-luxury** → Warm, serif, editorial
 - **soft-structuralism** → Clean, structural, consumer
-- **modern** (default if no vibe) → Glassmorphism, bento, bold
+- **industrial-dark** → Near-black steel blue, developer tools, B2B
+- **warm-agency** → Charcoal + copper/bronze, creative agencies
+- **editorial-serif** → Cream + deep coral, content-heavy sites
+- **soft-tech** → Off-white + electric indigo, modern SaaS
+- **modern** (default if no vibe specified) → Glassmorphism, bento, bold
 - **minimal** → White space, muted, simple
 - **enterprise** → Professional, conservative, trust
+- **custom** → Describe in chat; archetype tokens documented in plan.md
 
 ### 1B.3 Component Library
 
@@ -1493,6 +2108,74 @@ Based on template, plan sections. Apply Design Brain: anti-slop pre-check on her
 ### 1B.5 Token System Setup
 
 Generate CSS custom properties following Three-Layer Token Architecture. Set up semantic color mappings. Configure dark mode surface hierarchy.
+
+---
+
+## Phase 1B.6: WRITTEN DESIGN PLAN + HARD GATE
+
+**MANDATORY for all generation runs. NO CODE until the plan is approved.**
+
+After 1B.1-1B.5, write a complete design plan. Save to `$SESSION_DIR/plan.md`. Present to user.
+
+The plan MUST contain:
+
+```markdown
+# Design Plan — {{product_name}}
+Date: {{date}}
+Session: {{session_dir}}
+
+## Vibe Archetype
+[Name of archetype or "Custom"] — one sentence on why this matches the interview answers
+
+## Color Palette
+- Background: `oklch(...)` — [description]
+- Surface: `oklch(...)` — [description]
+- Accent: `oklch(...)` — [description]
+- Text primary: `oklch(...)` — [description]
+- Text secondary: `oklch(...)` — [description]
+
+## Typography Pairing
+- Display: [Font name] [weight] — [source/install]
+- Body: [Font name] [weight] — [source/install]
+- Mono (if needed): [Font name] — [source/install]
+
+## Component Libraries Selected
+- [Library name]: for [specific sections/components]
+- [Library name]: for [specific sections/components]
+
+## Section Breakdown
+| # | Section | Purpose | Library | Component |
+|---|---------|---------|---------|-----------|
+| 1 | [name] | [one job] | [lib] | [component name] |
+| 2 | ... | ... | ... | ... |
+
+## Animation Level
+MOTION_INTENSITY: [1-10] — [specific patterns: e.g., staggered entrances, scroll-parallax]
+DESIGN_VARIANCE: [1-10] — [layout approach]
+VISUAL_DENSITY: [1-10] — [density rationale]
+
+Lenis smooth scroll: [YES/NO] (required if MOTION_INTENSITY >= 6)
+GSAP: [YES/NO] (required only for complex timeline sequences)
+
+## Anti-Slop Commitments
+[List which S1-S25 patterns are at risk given the brief, and how they will be avoided]
+
+## Tech Stack
+- Framework: Next.js [version]
+- Tailwind: v[3/4]
+- Motion: [Framer Motion / CSS only / GSAP]
+- Package manager: [pnpm/npm/yarn/bun]
+```
+
+**HARD GATE — present plan and ask:**
+
+> "Plan above. Approved? Or revise?"
+
+**DO NOT write any code, install any packages, or create any files until the user explicitly approves the plan.**
+
+If user requests revisions: update the plan, re-present, ask again. Repeat until approved.
+
+When approved: update `$SESSION_DIR/plan.md` with `Status: APPROVED` and timestamp. Proceed to Phase 2B.
 
 ---
 
@@ -1517,7 +2200,49 @@ Hero: `priority` + `sizes`. Below-fold: lazy. Skeletons for async. `min-h-[100dv
 
 ---
 
-# PHASE 3: VERIFY (Both Paths)
+# PHASE 3: LOCALHOST BUILD (Generation Path Only)
+
+**This phase ends with the user seeing the live localhost site. Deployment is a separate decision. Do NOT commit. Do NOT push. Do NOT deploy.**
+
+After Phase 2B code generation:
+
+### 3A.1 Install Dependencies
+```bash
+$PM install
+```
+
+### 3A.2 Start Dev Server
+```bash
+$PM dev
+# or: $PM run dev
+# or: $PM start
+```
+
+Note the port (default 3000 or whatever the project uses).
+
+### 3A.3 Verify Server is Running
+```bash
+curl -s -o /dev/null -w "%{http_code}" http://localhost:3000
+# Expect: 200
+```
+
+### 3A.4 Open in Browser
+Navigate to `http://localhost:[PORT]` using Playwright MCP. Take screenshots at:
+- 375px (mobile)
+- 768px (tablet)
+- 1440px (desktop)
+
+### 3A.5 Spot-Check Against Plan
+Verify the live site visually matches the approved plan. If obvious gaps: fix them now, re-screenshot.
+
+### 3A.6 Report to User
+Show screenshots. State the localhost URL. Confirm the dev server is running.
+
+> "Live at http://localhost:[PORT]. Screenshots above show mobile/tablet/desktop. Deployment is a separate step — no commits have been made."
+
+---
+
+# PHASE 4: VERIFY (Both Paths)
 
 ```bash
 $PM run typecheck --if-present
@@ -1545,9 +2270,95 @@ Grep all modified/generated files for:
 
 If violations → auto-fix and re-verify.
 
+### Accessibility Scan (axe-core)
+
+```bash
+npx @axe-core/playwright http://localhost:[PORT] --reporter json > "$SESSION_DIR/axe-results.json"
+```
+
+Parse output. Add any violations as DES-AXE-NNN findings. Severity mapping:
+- axe `critical` → CRITICAL
+- axe `serious` → HIGH
+- axe `moderate` → MEDIUM
+- axe `minor` → LOW
+
+### Lighthouse CI (Core Web Vitals)
+
+```bash
+npx lhci collect --url=http://localhost:[PORT] --numberOfRuns=1
+npx lhci upload --target filesystem --outputDir "$SESSION_DIR/lighthouse"
+```
+
+Parse the CWV report. Report ACTUAL measured numbers, not aspirational targets.
+
+| Metric | Threshold | Status |
+|--------|-----------|--------|
+| LCP | > 2500ms | BLOCKED - must fix before ship |
+| CLS | > 0.1 | BLOCKED - must fix before ship |
+| INP | > 200ms | HIGH finding |
+| FCP | > 1800ms | MEDIUM finding |
+
+**BLOCKED findings (LCP > 2500ms or CLS > 0.1) prevent a SHIP recommendation regardless of Design Score.**
+
+### Phase 4A: Iterative Verification (Generation Path)
+
+Before declaring generation complete:
+
+1. Re-read `$SESSION_DIR/plan.md` (the approved plan)
+2. Check EVERY line item in the plan against what was delivered:
+   - Each section planned → exists in code?
+   - Vibe archetype tokens → implemented in CSS?
+   - Typography pairing → loaded and applied?
+   - Animation level → matches MOTION_INTENSITY dial?
+   - Anti-slop commitments → confirmed absent?
+3. Run S11-S25 check on all generated files
+4. Screenshot all 3 viewports one final time
+5. Document results in `$SESSION_DIR/verification.md`:
+
+```markdown
+# Verification Report — {{product_name}}
+Date: {{date}}
+
+## Plan vs Delivered
+
+| Plan Item | Status | Notes |
+|-----------|--------|-------|
+| [section name] | DELIVERED / MISSING / PARTIAL | [detail] |
+| [color token] | IMPLEMENTED / MISSING | [file:line] |
+| [font pairing] | IMPLEMENTED / MISSING | [file:line] |
+| [animation level] | CORRECT / MISMATCH | [detail] |
+
+## Anti-Slop Check (S1-S25)
+| Pattern | Result |
+|---------|--------|
+| S1-S10 | PASS/FAIL per pattern |
+| S11-S25 | PASS/FAIL per pattern |
+
+## Accessibility
+axe-core findings: [N] critical, [N] serious, [N] moderate
+
+## Core Web Vitals (Measured)
+LCP: [Xms] — [PASS/BLOCKED]
+CLS: [X.XX] — [PASS/BLOCKED]
+INP: [Xms] — [PASS/HIGH]
+
+## Gaps Found and Filled
+[List any gaps filled during this phase]
+
+## Final Status
+[ ] All plan items delivered
+[ ] S1-S25 all PASS
+[ ] No BLOCKED CWV findings
+[ ] Verified at 375px / 768px / 1440px
+```
+
+6. Fill any gaps found. Update `verification.md` with results.
+
 ---
 
-# PHASE 4: REPORT (Both Paths)
+# PHASE 5: REPORT (Both Paths)
+
+Save final SITREP to `$SESSION_DIR/sitrep.md`.
 
 ### Audit Report — Executive Summary
 
@@ -1563,7 +2374,9 @@ If violations → auto-fix and re-verify.
 | Deferred | [X] |
 | Blocked | [X] |
 
-### Design Score: [X]/100 (Grade: [A-F])
+### Design Score: [X]/100 (Grade: [A-F])    |    AI Slop Score: [A-F] ([N] patterns detected)
+
+**First Impression:** [One-word verdict] — [Gut reaction sentence]
 
 | Dimension | Score |
 |-----------|-------|
@@ -1578,7 +2391,26 @@ If violations → auto-fix and re-verify.
 | Performance | [X]/10 |
 | Anti-Slop Compliance | [X]/10 |
 
+### Litmus Tests: [X]/7 passed
+| Test | Result |
+|------|--------|
+| L1 Brand unmistakable | YES/NO |
+| L2 Visual anchor present | YES/NO |
+| L3 Scannable headlines | YES/NO |
+| L4 One job per section | YES/NO |
+| L5 Cards necessary | YES/NO |
+| L6 Motion purposeful | YES/NO |
+| L7 Survives shadow removal | YES/NO |
+
+### AI Slop Patterns Detected: [list S1-S10 names if any]
+
+### Design System Divergence: [X] token mismatches found
+
+### Cross-Page Consistency: [X] inconsistencies found
+
 ### Responsive Coverage: [X]% → [Y]% (after fixes)
+
+### Fix Risk Budget: [X]% used ([N] fixes applied, [N] deferred due to budget)
 ```
 
 ### Status Report Display
@@ -1713,18 +2545,50 @@ Follows **[Context Management Protocol](~/.claude/standards/CONTEXT_MANAGEMENT.m
 
 ---
 
+## SITREP
+
+> Reference: [SITREP Standard](~/.claude/standards/SITREP_FORMAT.md) — use the unified template with domain-specific additions below.
+
+---
+
 ## CLEANUP PROTOCOL
 
 > Reference: [Resource Cleanup Protocol](~/.claude/standards/CLEANUP_PROTOCOL.md)
 
-1. Close all Playwright browser instances (`browser_close`)
-2. Keep screenshots in `.design-reports/screenshots/`
-3. Verify no orphaned Chromium processes
-4. Release dev server port
-5. Enforce `.design-reports/` in `.gitignore`
-6. Document installed deps in report
+> Reference: [Resource Cleanup Protocol](~/.claude/standards/CLEANUP_PROTOCOL.md) — Ephemeral Artifact Policy
 
-<!-- Claude Code Skill by Steel Motion LLC — https://steelmotion.dev -->
+1. Close all Playwright browser instances (`browser_close`). Verify no orphaned Chromium.
+2. **DELETE non-evidence screenshots** in `.design-reports/screenshots/` — page screenshots used during analysis are ephemeral. Only keep screenshots referenced as evidence in findings.
+3. **KEEP evidence** in `.design-reports/evidence/` (before/after per finding) — these are linked to the report.
+4. **DELETE old artifacts** from previous runs: screenshots >7 days old, state files >24 hours old.
+5. Verify no orphaned Chromium processes (`pgrep -f chromium` matches pre-skill baseline)
+6. Release dev server port (if started by skill)
+7. Enforce `.design-reports/` in `.gitignore`
+8. Document installed deps in report
+
+---
+
+## RELATED SKILLS
+
+**Feeds from:**
+- `/brainstorm` - spec and design decisions flow into design execution
+- `/browse` - visual inspection and CSS extraction inform the audit baseline
+
+**Feeds into:**
+- `/a11y` - new UI must have an accessibility audit after design changes
+- `/perf` - new UI impacts performance (bundle size, layout shift, image weight)
+- `/browse` - visual verification of shipped design changes
+- `/copy` - UI copy often revised once layout is defined
+
+**Pairs with:**
+- `/a11y` - design and accessibility are co-developed; run together on new UI
+- `/copy` - design and copy are developed in parallel for landing pages and marketing UI
+
+**Auto-suggest after completion:**
+- `/a11y` - "Design shipped. Run /a11y to audit WCAG compliance on the new UI?"
+- `/browse` - "Run /browse to do a visual spot-check of the changes?"
+
+<!-- Claude Code Skill — Generic Frontend Design System -->
 <!-- Part of the Claude Code Skills Collection -->
 <!-- Powered by Claude models: Haiku (fast extraction), Sonnet (balanced reasoning), Opus (deep analysis) -->
 <!-- License: MIT -->

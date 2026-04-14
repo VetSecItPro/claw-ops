@@ -116,6 +116,26 @@ Each layer uses provider-specific adapters while keeping the pipeline uniform.
 
 ---
 
+## DISCIPLINE
+
+> Reference: [Superpowers Discipline Protocol](~/.claude/standards/STEEL_DISCIPLINE.md)
+
+Key enforcements for this skill:
+- **Steel Principle #1:** NO completion claims without fresh verification evidence — re-introspect schema post-migration
+- **Steel Principle #2:** NO migration without a backup/snapshot and a tested rollback path
+- Never alter schema to match broken code without confirming the code intent first
+
+### DB-Specific Rationalization Table
+
+| Rationalization | Reality | What to Do |
+|----------------|---------|------------|
+| "The migration looks straightforward" | Data loss from 'straightforward' migrations is real; column renames, NOT NULL adds, type changes all bite | Backup, dry-run, test rollback before apply |
+| "RLS policies look right, trust them" | Subtle auth bugs slip past review; missing `USING` or `WITH CHECK` leaks rows | Write a SQL test that proves each policy with real roles |
+| "The schema diff is small, skip the snapshot" | Small diff + prod data = irreversible; one dropped column = lost history | Snapshot before every push, even for 'trivial' changes |
+| "Prod schema matches staging" | Drift accumulates; prod often has hand-applied patches | Introspect prod directly, not staging, for drift comparison |
+
+---
+
 ## CONTEXT MANAGEMENT
 
 > Reference: [Context Management Protocol](~/.claude/standards/CONTEXT_MANAGEMENT.md)
@@ -1451,6 +1471,8 @@ If build fails after type regeneration:
 
 ---
 
+> Reference: [SITREP Standard](~/.claude/standards/SITREP_FORMAT.md) — use the unified template with domain-specific additions below.
+
 ## SITREP (Conclusion)
 
 ### Mission Status: 🟢 COMPLETE
@@ -1653,6 +1675,26 @@ Cleanup verification:
 - Seed data is documented in the report
 - No real credentials in seed files or reports
 - No connection strings in any output file
+
+---
+
+## RELATED SKILLS
+
+**Feeds from:**
+- `/brainstorm` or `/mdmp` - schema changes should be planned before execution; the spec drives what tables and columns to add
+- `/migrate` - major dependency upgrades may change ORM schema expectations; migrate identifies what db needs to address
+
+**Feeds into:**
+- `/gh-ship` - after schema changes are validated locally, ship the migration files with gh-ship
+- `/compliance` - database schema determines what personal data is stored; compliance audit reads schema for GDPR/CCPA scope
+- `/sec-ship` - RLS policy gaps found by db feed into sec-ship for remediation
+
+**Pairs with:**
+- `/migrate` - when upgrading ORMs or database providers, db and migrate work together
+- `/test-ship` - schema changes need test coverage; db changes should be paired with a test-ship pass
+
+**Auto-suggest after completion:**
+When migrations are validated locally and build passes, suggest: `/gh-ship` to commit and ship the migrations; if RLS policies were changed, suggest `/sec-ship` to verify authorization coverage
 
 ---
 

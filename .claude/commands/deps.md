@@ -6,6 +6,26 @@
 
 ---
 
+## DISCIPLINE
+
+> Reference: [Superpowers Discipline Protocol](~/.claude/standards/STEEL_DISCIPLINE.md)
+
+Key enforcements for this skill:
+- **Steel Principle #1:** NO completion claims without fresh verification evidence — build + tests must pass after every update batch
+- **Steel Principle #3:** NO silent major upgrades — majors get explicit approval and a migration plan (defer to /migrate)
+- Lockfile changes are code — review them; never commit an unreviewed lockfile rewrite
+
+### Deps-Specific Rationalization Table
+
+| Rationalization | Reality | What to Do |
+|----------------|---------|------------|
+| "We were clean last week, skip the full audit" | CVEs drop daily; last week's clean audit doesn't prove today | Run full audit every time |
+| "This CVE is low severity, skip it" | Low severity CVEs chain with others into full exploits | Document and patch; no silent skips |
+| "Minor version, should be safe to bump" | Semver is a suggestion; minors break APIs regularly | Run the test suite after every bump |
+| "The lockfile diff is too big to read" | Big lockfile diffs hide transitive package swaps (supply chain risk) | Diff tree, not just lockfile; verify no unexpected packages |
+
+---
+
 ## STATUS UPDATES
 
 This skill follows the **[Status Update Protocol](~/.claude/standards/STATUS_UPDATES.md)**.
@@ -287,6 +307,8 @@ BASELINE_SIZE=$(du -sh node_modules 2>/dev/null | cut -f1 || echo "unknown")
 |----|---------|------|----|------|---------|-------|------|--------|
 
 ---
+
+> Reference: [SITREP Standard](~/.claude/standards/SITREP_FORMAT.md) — use the unified template with domain-specific additions below.
 
 ## SITREP
 
@@ -733,6 +755,26 @@ Only ask for human input when:
 - **Supply chain security** — detects malicious packages
 - Run weekly to stay ahead of vulnerabilities
 - Run before deployments for peace of mind
+
+## RELATED SKILLS
+
+**Feeds from:**
+- (none - /deps is typically run proactively or as part of launch readiness)
+
+**Feeds into:**
+- `/gh-ship` - once all dependencies are updated and clean, ship with gh-ship
+- `/test-ship` - dep updates may break tests; run test-ship after major updates to verify coverage
+- `/sec-ship` - security vulnerabilities found by deps feed into sec-ship for full remediation context
+
+**Pairs with:**
+- `/sec-ship` - run together when security is the priority; deps handles supply chain, sec-ship handles application code
+- `/migrate` - when deps flags a major version upgrade, migrate handles the actual breaking-change migration
+- `/launch` - deps is one of 8 skills orchestrated by launch readiness; pre-launch deps sweep is mandatory
+
+**Auto-suggest after completion:**
+When all findings are FIXED or OK, suggest: `/gh-ship` to commit the dependency updates; if major versions were deferred, suggest `/migrate` for each one
+
+---
 
 ## CLEANUP PROTOCOL
 

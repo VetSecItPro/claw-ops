@@ -15,6 +15,26 @@ That's it. Server starts on port 5888. If something's broken, it fixes it automa
 
 ---
 
+## DISCIPLINE
+
+> Reference: [Superpowers Discipline Protocol](~/.claude/standards/STEEL_DISCIPLINE.md)
+
+Key enforcements for this skill:
+- **Steel Principle #1:** NO completion claims without fresh verification evidence — curl the port and confirm the app responded with 200
+- **Steel Principle #4:** NO declaring "server started" based on log tail alone — hit the URL
+- Never kill processes outside this project (other projects' dev servers stay untouched)
+
+### Dev-Specific Rationalization Table
+
+| Rationalization | Reality | What to Do |
+|----------------|---------|------------|
+| "The dev server usually starts" | Usually != always. Port collisions, stale caches, corrupt `.next` all cause silent failures | Verify with curl against the actual port |
+| "Logs say 'ready' so it must be up" | Log line 'ready' can fire before the HTTP server binds, or while routes 500 | Hit a real route, check for 200 |
+| "I'll just kill all node processes" | Kills other projects' servers, IDE helpers, language servers | Kill only PIDs bound to this project's port |
+| "The process is running, skip the health check" | Running != serving; ghost processes bind the port without responding | Run the health ping, not just ps |
+
+---
+
 ## Usage
 
 ```bash
@@ -321,6 +341,42 @@ No emoji, no fixes, just starts. Use when you know everything is fine.
 5. **Escape hatches exist** — `-m` for minimal, `-v` for verbose
 
 The goal: You type `/dev 5888` and forget about it. It either works, or it tells you why it can't.
+
+---
+
+## RELATED SKILLS
+
+**Feeds from:**
+- (none - /dev is typically the first command in a development session)
+
+**Feeds into:**
+- `/browse` - once the dev server is running, browse to visually inspect
+- `/qatest` - dev server is the target for QA testing; start dev, then qatest
+- `/redteam` - dev server is the attack surface; start dev, then redteam
+
+**Pairs with:**
+- `/smoketest` - run smoketest while dev server is running to catch obvious issues early
+- `/browse` - dev + browse is the standard interactive development loop
+
+**Auto-suggest after completion:**
+When dev server is confirmed healthy (200 OK on the port), suggest: `/browse` for visual inspection, or `/qatest` for functional validation
+
+---
+
+## SITREP
+
+> Reference: [SITREP Standard](~/.claude/standards/SITREP_FORMAT.md)
+
+At the end of every /dev run, output:
+
+**Skill:** /dev
+**Status:** COMPLETE / PARTIAL / BLOCKED
+**Server:** [running/failed]
+**URL:** [http://localhost:PORT]
+**PID:** [process ID]
+**Build status:** [clean/warnings/errors]
+**Errors fixed:** [count or "none"]
+**Time to ready:** [duration]
 
 ---
 

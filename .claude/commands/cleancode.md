@@ -48,6 +48,26 @@ DESIGN RATIONALE
 
 ---
 
+## DISCIPLINE
+
+> Reference: [Superpowers Discipline Protocol](~/.claude/standards/STEEL_DISCIPLINE.md)
+
+Key enforcements for this skill:
+- **Steel Principle #1:** NO completion claims without fresh verification evidence — build + tests must pass after every removal
+- **Steel Principle #3:** NO scope creep — clean only what this run identified; new refactors get their own pass
+- Every deletion is backed by dependency-graph evidence, not grep guesses
+
+### Cleancode-Specific Rationalization Table
+
+| Rationalization | Reality | What to Do |
+|----------------|---------|------------|
+| "While I'm here, I'll also refactor X" | Scope creep creates bugs that look like cleanup regressions | One task at a time; new refactor = new run |
+| "This change is safe, skip the test" | Safe-looking changes break things; barrel exports, dynamic imports, and framework conventions bite | Run the test suite after every change |
+| "No one imports this file, delete it" | External consumers, framework conventions (e.g., `page.tsx`), and runtime imports don't show in static graphs | Verify with the full dep graph + framework-aware rules before deleting |
+| "TypeScript says it's unused" | TS unused checks miss JSX-only refs, side-effect imports, and type-only usage | Confirm with build + runtime check, not just ts-unused-exports |
+
+---
+
 ## STATUS UPDATES
 
 This skill follows the **[Status Update Protocol](~/.claude/standards/STATUS_UPDATES.md)**.
@@ -1054,7 +1074,9 @@ Detect:
 
 ## PHASE 3: ADDITIONAL AUDITS
 
-### 3.1 Duplication Detection
+### 3.1 Duplication Detection (Textual + Semantic)
+
+#### 3.1a Textual Duplication (jscpd)
 
 ```bash
 npx jscpd --min-lines 5 --min-tokens 50 --reporters json --output .cleancode-reports/reports/
@@ -1067,6 +1089,59 @@ npx jscpd --min-lines 5 --min-tokens 50 --reporters json --output .cleancode-rep
 | 10-20 | 100% | Extract to shared function |
 | 20+ | 100% | Must extract |
 | 10+ | 80%+ | Review for abstraction |
+
+#### 3.1b Semantic Duplicate Detection (LLM-Powered)
+
+**Beyond textual matching:** jscpd finds code that LOOKS the same. Semantic detection finds code that DOES the same thing but is written differently. Two functions that both "fetch user by ID, check permissions, return profile data" are semantic duplicates even if they use different variable names, different error handling patterns, or different query styles.
+
+**Agent:** `sonnet` — must understand function intent, not just syntax
+
+**Two-phase approach:**
+
+**Phase A: Classical Extraction**
+1. Parse all exported functions across the codebase
+2. For each function, extract a signature: `(input types) → output type + side effects`
+3. Group functions with matching signatures (same input/output shape)
+4. Within each group, flag pairs for semantic comparison
+
+**Phase B: LLM-Powered Intent Clustering**
+For each group of signature-matched functions:
+1. Read both function bodies
+2. Determine: do these functions have the **same intent**?
+   - Same intent, same implementation → textual duplicate (already caught by jscpd)
+   - Same intent, different implementation → **SEMANTIC DUPLICATE** → must consolidate
+   - Different intent, same signature → coincidence, not a duplicate
+3. For confirmed semantic duplicates, determine the **canonical** version (the better implementation)
+
+**Semantic duplicate finding format:**
+```
+CC-SEM-001: Semantic duplicate detected
+  Function A: getUserProfile() in lib/services/user-service.ts:45
+  Function B: fetchUserData() in app/api/users/route.ts:23
+  Intent: Both fetch user by ID from Supabase, check auth, return profile
+  Difference: A uses .single(), B uses .limit(1). A throws on not-found, B returns null.
+  Canonical: A (better error handling)
+  Action: Replace B's callers with A, delete B
+```
+
+**Common semantic duplicate patterns to check:**
+
+| Pattern | Example |
+|---------|---------|
+| **Same query, different wrappers** | `getUser()` in service vs inline Supabase query in route handler |
+| **Same validation, different locations** | Zod schema defined in both the form component and the API route |
+| **Same transformation, different names** | `formatDate()` in utils vs `dateToString()` in helpers |
+| **Same error handling, different styles** | try/catch with redirect in one place, try/catch with throw in another |
+| **Same data fetch, different caching** | SWR hook and a manual fetch doing the same query |
+| **Same component logic, different UI** | Two card components that fetch and display the same data differently |
+
+**Auto-fixable semantic duplicates:**
+- Functions with identical intent + one is strictly better → replace callers, delete the weaker one
+- Zod schemas duplicated across client/server → extract to shared `lib/validations/`
+
+**Flagged for review:**
+- Functions with same intent but different error handling strategies (user must decide which is correct)
+- Components with same data but different UI (may be intentional variation)
 
 **Smart consolidation:** When consolidating duplicates, check if the duplicated code belongs in:
 - A shared utility (`lib/utils.ts`)
@@ -1326,6 +1401,8 @@ pnpm lint 2>/dev/null || npx eslint . 2>/dev/null
 
 ---
 
+> Reference: [SITREP Standard](~/.claude/standards/SITREP_FORMAT.md) — use the unified template with domain-specific additions below.
+
 ## SITREP (Conclusion)
 
 ### Mission Status: COMPLETE
@@ -1378,6 +1455,25 @@ git reset --hard $CLEAN_BASE
 git stash pop 2>/dev/null || true
 echo "Rolled back to: $CLEAN_BASE"
 ```
+
+---
+
+## RELATED SKILLS
+
+**Feeds from:**
+- (none - /cleancode is typically run proactively on existing code, or as part of /launch readiness)
+
+**Feeds into:**
+- `/gh-ship` - once code is cleaned and build passes, ship the cleanup with gh-ship
+- `/perf` - dead code removal and bundle optimization surface the same issues; cleancode may reduce bundle size enough to skip a perf pass
+
+**Pairs with:**
+- `/test-ship` - run together before launch to ensure both code quality and test coverage are solid
+- `/docs` - clean code paired with good documentation is the full maintenance readiness pass
+- `/launch` - cleancode is one of 8 skills orchestrated by launch; run standalone first to address major debt before launch sweep
+
+**Auto-suggest after completion:**
+When all FIXED findings are verified and build passes, suggest: `/gh-ship` to commit the cleanup; if large files remain over 400 lines, suggest `/brainstorm` to plan a decomposition
 
 ---
 

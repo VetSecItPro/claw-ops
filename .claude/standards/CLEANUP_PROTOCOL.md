@@ -116,9 +116,97 @@ If cleanup fails, log it prominently in the report and warn the user:
 
 The skill should still complete (don't fail the entire run because cleanup failed), but the user must know about orphaned resources.
 
-### Rule 6: Gitignore Enforcement is Mandatory
+### Rule 6: Ephemeral Artifacts Must Be Purged
 
-Every skill that creates a report directory MUST ensure it is gitignored:
+Skills generate artifacts that are useful DURING the run but become waste AFTER. These must be cleaned up at the end of each run unless explicitly retained.
+
+**Ephemeral artifacts and their lifecycle:**
+
+| Artifact | Created By | Useful During | Delete When |
+|----------|-----------|---------------|-------------|
+| Screenshots (page health, responsive) | `/qatest`, `/design`, `/browse`, `/a11y` | Audit analysis, evidence linking | End of run — UNLESS linked to a finding in the report |
+| Before/after evidence screenshots | `/qatest`, `/design`, `/investigate` | Report evidence | **KEEP** — these are finding-linked evidence. Delete only if finding was FALSE POSITIVE |
+| CSS inspection dumps | `/browse` | Debugging | End of run |
+| Live metric JSON files | `/perf` | Before/after comparison | **KEEP `baseline.json` and `current.json`** only. Delete intermediate measurement files. |
+| Route manifests | `/qatest` | Phase 1 discovery | End of run |
+| State/checkpoint files | All skills | Crash recovery | End of SUCCESSFUL run. Keep on failure (enables resume). |
+| Test user accounts | `/qatest`, `/redteam` | Testing authenticated flows | **MUST delete** at end of run (see Rule 6a) |
+| Test form submissions | `/qatest` | Form testing | **MUST delete** at end of run (see Rule 6a) |
+| Git bisect state | `/investigate` | Bisect operation | End of run (`git bisect reset`) |
+| Temporary logs (`[INV]` markers) | `/investigate` | Hypothesis testing | End of run (grep + remove) |
+
+**Screenshot retention policy:**
+
+```
+Per-run screenshot budget:
+  - Page screenshots (responsive batch): DELETE at end of run
+  - Finding-linked evidence (before/after): KEEP (referenced in report)
+  - Audit screenshots: KEEP only the LATEST run's screenshots
+  
+Cross-run retention:
+  - DELETE all screenshots from runs older than 7 days
+  - DELETE all state files from runs older than 24 hours
+  - KEEP all report .md files (they're the permanent record)
+  - KEEP baseline.json and history.json (trend tracking)
+```
+
+**Report directory cleanup (prevents bloat across multiple runs):**
+
+At the START of every skill run, before creating new artifacts:
+```bash
+REPORT_DIR=".[skill]-reports"
+
+# Delete screenshots from previous runs (keep evidence/)
+find "$REPORT_DIR/screenshots" -type f -mtime +7 -delete 2>/dev/null
+
+# Delete state files older than 24 hours (no longer useful for resume)
+find "$REPORT_DIR" -name "state-*.json" -mtime +1 -delete 2>/dev/null
+
+# Delete intermediate metric files (keep baseline.json, current.json, history.json)
+find "$REPORT_DIR" -name "live-metrics-*.json" -mtime +7 -delete 2>/dev/null
+
+# Log what was cleaned
+echo "Cleaned $(find "$REPORT_DIR" -name "*.png" -mtime +7 | wc -l) old screenshots"
+```
+
+### Rule 6a: Test Data MUST Be Deleted — No Exceptions
+
+Any data created in a database during skill execution MUST be deleted before the skill exits. This is not optional. Test data left in databases causes:
+- Confusion when users see test records in their app
+- Data integrity issues when test records have fake relationships
+- Storage bloat over repeated runs
+- Security risk if test data contains predictable patterns
+
+**Test data lifecycle:**
+
+```
+1. CREATE: Use a recognizable prefix (e.g., `qatest_`, `redteam_`, `inv_`)
+2. TRACK: Record every created record ID in the state file
+3. USE: Run tests against the created data
+4. DELETE: Remove ALL created records by ID or prefix
+5. VERIFY: SELECT count with prefix — must be 0
+6. LOG: Report how many records were created and deleted
+```
+
+**If deletion fails:**
+- Retry once
+- If still fails: log the EXACT records that remain (table, IDs, prefix)
+- Include manual cleanup command in the report:
+  ```sql
+  -- Manual cleanup for failed test data deletion
+  DELETE FROM sm_contact_inquiries WHERE email LIKE 'qatest_%';
+  DELETE FROM users WHERE email LIKE 'redteam_%';
+  ```
+- **NEVER silently leave test data.** The user MUST be told.
+
+**Test accounts specifically:**
+- If the skill created a test user account (for auth flow testing), that account MUST be deleted
+- If the account cannot be deleted (e.g., no admin API): document it prominently in SITREP with deletion instructions
+- Use unique, timestamped identifiers: `qatest_1711900800@example.com` (not `test@test.com`)
+
+### Rule 7: Gitignore Enforcement is Mandatory
+
+Every skill that creates a report or artifact directory MUST ensure it is gitignored:
 
 ```bash
 # Standard pattern — use in every skill's Stage 0
@@ -342,6 +430,8 @@ Based on the resource audit, here are the cleanup requirements per skill:
 | `/launch` | Verify sub-agents cleaned | Verify sub-agents cleaned | Verify sub-agents cleaned | Stale scorecards | -- | -- |
 | `/dev` | -- | Disclose (Start+Leave) | -- | -- | -- | Disclose lockfile changes |
 | `/db` | -- | -- | Document seed data | `.db/*.sql` | -- | -- |
+| `/browse` | Close | -- | -- | Screenshots, CSS dumps | -- | -- |
+| `/investigate` | Close if opened | -- | -- | Temp logs (`[INV]`), bisect state | Bisect reset | -- |
 
 ### Skills That Need Only Gitignore Enforcement
 
@@ -352,6 +442,8 @@ Based on the resource audit, here are the cleanup requirements per skill:
 | `/sec-weekly-scan` | `.security-reports/` | YES — add enforcement |
 | `/sec-ship` | `.security-reports/` | Verify existing |
 | `/a11y` | `.a11y/` | YES — add enforcement |
+| `/browse` | `.browse/` | YES — add enforcement |
+| `/investigate` | `.investigate/` | YES — add enforcement |
 
 ### Skills That Are Already Clean (No Cleanup Needed)
 
@@ -361,14 +453,14 @@ Based on the resource audit, here are the cleanup requirements per skill:
 | `/incident` | Code changes are intentional, failed fixes reverted, gitignore enforced |
 | `/migrate` | Branch is intentional, gitignore enforced |
 | `/blog` | Content is intentional, delegates git to `/gh-ship` |
-| `/perf` | Static analysis only, no resources created |
+| `/perf` | Live browser measurement added — now needs browser cleanup (see full cleanup table) |
 | `/docs` | Minor: `/tmp/example.ts` orphan (fix this) |
 | `/mdmp` | Planning tool, minimal side effects |
 | `/smoketest` | Minimal side effects |
 | `/gh-ship` | Already has best-in-class cleanup (Stage 12) |
 | `/deps` | Has cleanup phase, minor `.deps-audit.json` orphan |
 | `/cleancode` | Minor: git stash not dropped on success |
-| `/sec-ship` | Code changes are intentional, no resources created |
+| `/sec-ship` | Code changes are intentional, exclusions.json is permanent |
 
 ---
 
@@ -483,4 +575,4 @@ A production-grade skill cleans up after itself. Always.
 
 ---
 
-*Last Updated: 2026-02-24*
+*Last Updated: 2026-03-31*
