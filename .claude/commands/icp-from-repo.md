@@ -152,14 +152,51 @@ grep -q ".icp-from-repo-reports" .gitignore 2>/dev/null || echo ".icp-from-repo-
 
 ### Local Mode (filesystem path)
 
-Use Glob / Grep / Read directly:
+Use Glob / Grep / Read directly. **Always exclude** `node_modules/**`, `dist/**`, `build/**`, `.next/**`, `.turbo/**`, `.vercel/**` from every Glob call - they bloat results and dilute LLM context.
+
+#### Step 1.0 - Monorepo Detection
+
+Before scanning, detect whether this is a monorepo and enumerate the workspace packages:
+
+**Detection signals (check in order):**
+
+1. `package.json` has a `workspaces` field (Yarn/npm/pnpm workspaces):
+   ```bash
+   jq -r '.workspaces // empty | if type == "array" then .[] else .packages[]? end' package.json
+   ```
+   Glob patterns like `packages/*` or `apps/*` - expand them to concrete package directories.
+
+2. `pnpm-workspace.yaml` exists (pnpm workspaces):
+   ```bash
+   grep -oE "- '[^']+'" pnpm-workspace.yaml | tr -d "'-"
+   ```
+
+3. `turbo.json` exists (Turborepo - usually paired with workspaces above, but note its presence).
+
+4. `lerna.json` has `packages` array (legacy Lerna).
+
+5. `nx.json` exists (Nx monorepo - check `workspaces.projects` in package.json or `apps/*`).
+
+6. None of the above - treat as single-product repo. Scan from project root.
+
+**Output:** a list of **scan roots**. For a single-product repo, it's `["."]`. For a monorepo, it's one entry per package that has its own `package.json` and source code - e.g. `["packages/web", "packages/cli", "packages/mobile"]` or `["apps/dashboard", "apps/marketing"]`.
+
+**Ask the user** (if multiple packages and Q2 didn't already pick one): "I see N packages: [list]. Scan all of them, or just one? Product-specific brief recommends picking one; multi-product brief requires scanning all."
+
+#### Step 1.1 - File Scan (applied to each scan root)
 
 - Root-level manifests: `package.json`, `pyproject.toml`, `Cargo.toml`, `go.mod`, `Gemfile`, `composer.json`, `pom.xml`, `build.gradle`
-- Documentation: `README.md`, `README.mdx`, `docs/`, `CHANGELOG.md`, `AGENTS.md`, `CLAUDE.md`
-- Landing / marketing: `src/app/page.tsx`, `src/app/(marketing)/**`, `app/page.tsx`, `pages/index.tsx`, `public/index.html`, `content/`
-- Product surface: `src/app/**`, `src/components/**`, `src/pages/**`, `app/**`, `api/**`, `routes/**`
-- Pricing: Grep for `pricing`, `plans`, `tiers`, `stripe`, `subscription` across repo
+- Documentation: `README.md`, `README.mdx`, `docs/**/*.md`, `CHANGELOG.md`, `AGENTS.md`, `CLAUDE.md`
+- Landing / marketing (check BOTH `src/app/` and bare `app/` - Next.js supports both): `src/app/page.{tsx,jsx}`, `src/app/(marketing)/**`, `app/page.{tsx,jsx}`, `pages/index.{tsx,jsx}`, `public/index.html`, `content/**/*.{md,mdx}`
+- Product surface: `src/app/**/page.{tsx,jsx}`, `src/app/**/route.{ts,tsx}`, `src/components/**`, `src/pages/**/*.{tsx,jsx}`, `app/**/page.{tsx,jsx}`, `api/**`, `routes/**`
+- Pricing: Grep for `pricing`, `plans`, `tiers`, `stripe`, `lemonsqueezy`, `paddle`, `polar`, `subscription` across repo (with exclusions above)
 - Feature flags or env: `.env.example`, `config/`, feature flag files
+
+**Glob hygiene reminder:** Always pass the exclusions. Example in Next.js:
+```
+Glob(pattern="src/app/**/page.{tsx,jsx}", path="<scan_root>")
+# NOT Glob(pattern="**/page.tsx") - will pull node_modules junk
+```
 
 ### Remote Mode (GitHub URL)
 
@@ -305,20 +342,24 @@ Write to `raw-extractions/readme-summary.md`.
 
 ### 3.3 Feature Inventory (Code-Ground-Truth)
 
-Scan app routes and components to build the features inventory:
+Scan app routes and components to build the features inventory. For each scan root identified in Phase 1 Step 1.0, run:
 
-- **Next.js (app router):** list all `src/app/**/page.{tsx,jsx}` files; extract route paths
+- **Next.js (app router):** list all `src/app/**/page.{tsx,jsx}` and `app/**/page.{tsx,jsx}`; extract route paths
 - **Next.js (pages router):** list all `pages/**/*.{tsx,jsx}` excluding `_*.tsx`
 - **Remix:** `app/routes/**/*.tsx`
 - **Django / Rails / Express:** route registration files
+- **CLI-first products:** `bin/`, `cli/`, `packages/*-cli/src/**`, subcommand registrations
+- **Mobile (Expo/React Native):** `app/**/*.tsx` (expo-router), `screens/**`, navigation configs
 - **Generic:** any file named `*routes*`, `*urls*`, OpenAPI / Swagger specs
+
+**Always exclude** `node_modules`, `dist`, `build`, `.next`, `.turbo`, `.vercel`.
 
 For each route/feature, try to infer user-visible label from:
 - Component name
 - Page title / metadata
 - H1 or hero copy in the component
 
-Write to `raw-extractions/features-inventory.md` as a bulleted list of user-visible features.
+Write to `raw-extractions/features-inventory.md` as a bulleted list of user-visible features, grouped by scan root in monorepo cases.
 
 **Cross-check:** Compare README feature list vs. code feature list. Flag:
 - **README claims, code absent:** aspirational marketing, clarify
@@ -331,6 +372,46 @@ If marketing pages were identified in Phase 1:
 - Extract: H1, sub-headline, feature grid titles, social proof (testimonials, logos), CTAs, pricing copy
 
 Write to `raw-extractions/landing-copy.md`.
+
+### 3.4.1 JSON-LD Structured Data Extraction (High-Signal Source)
+
+Modern landing pages embed JSON-LD structured data blocks for SEO and AI answer engines. These blocks are **the richest single source** of product data on most modern sites: featureList, offers, pricing, author, applicationCategory, operatingSystem. Always check for them before falling back to prose parsing.
+
+**Extraction pattern:**
+
+```bash
+# Find JSON-LD blocks in landing pages
+grep -rEn 'application/ld\+json' \
+  src/app/page.tsx src/app/layout.tsx app/page.tsx pages/index.tsx \
+  2>/dev/null
+```
+
+If found, extract the JSON blob (usually in a `<script type="application/ld+json">` or a JavaScript const assigned to `dangerouslySetInnerHTML`) and parse it. Look specifically for:
+
+- `@type: SoftwareApplication` - `name`, `description`, `featureList[]`, `operatingSystem`, `applicationCategory`, `offers.price`, `author.name`
+- `@type: Product` - `name`, `description`, `offers[]` with tiered pricing
+- `@type: FAQPage` - `mainEntity[]` with common customer questions (signals objections + pain points)
+- `@type: Organization` - `url`, `sameAs[]` (social proof channels), `contactPoint`
+- `@type: BreadcrumbList` - site architecture hints
+
+**Priority rule:** if JSON-LD `featureList` and README feature bullets disagree, trust JSON-LD for the `features.marketed` field (it's what actually renders for Google and ChatGPT) and note the delta.
+
+### 3.4.2 Product CLAUDE.md / AGENTS.md Parsing (Competitive Intel Source)
+
+If a root-level `CLAUDE.md` or `AGENTS.md` exists in the scan root, it is often a **product-philosophy document** written for AI agents that captures strategic context not present in user-facing docs:
+
+- Named competitors ("positioned against X", "better than Y")
+- Product philosophy ("90% solution at launch", "premium not MVP")
+- Pricing strategy (decoy tier layouts, anchor pricing reasoning)
+- Known anti-patterns or customer segments to avoid
+- Team culture / principles that inform support and onboarding tone
+
+Parse these files for:
+- Sections titled "Product Philosophy", "Core Principles", "Positioning", "Competitors", "Target Audience", "What We Don't Build"
+- Any explicit competitor names (grep for "competitor", "vs.", "unlike", "beats", "better than")
+- Any pricing-page code comments (`pricing/page.tsx` often has inline reasoning about decoy pricing, tier positioning)
+
+Write findings to `raw-extractions/strategic-intel.md`. These feed into `product-brief.json` under a new `competitive_signals` section.
 
 ### 3.5 Pricing Signal Extraction
 
@@ -399,6 +480,10 @@ Combine all extractions into `.marketing-context/product-brief.json`:
     "install_surface": "one-line | multi-step | enterprise-deploy",
     "contact_channels": [],
     "target_budget_tier": "individual | smb | midmarket | enterprise | unknown"
+  },
+  "competitive_signals": {
+    "known_competitors_from_internal_docs": [],
+    "differentiation_angles": []
   },
   "gaps_requiring_user_input": []
 }
