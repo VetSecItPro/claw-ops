@@ -95,6 +95,17 @@ grep -q ".marketing-context" .gitignore 2>/dev/null || echo ".marketing-context/
 - If not found, check `~/.claude/marketing-global/` for named brand files
 - Note: brand context informs ICP language and proof points but does not gate execution
 
+**Product brief load (handoff from `/icp-from-repo`):**
+- Check `.marketing-context/product-brief.json` - if found, auto-populate the Phase 0 Socratic interview with extracted product context:
+  - Q2 best-customer hypothesis seeds from `audience_hypothesis.from_feature_set` and `audience_hypothesis.from_landing_copy`
+  - Pricing model from `pricing.model` and `pricing.tiers` informs Tier A/B/C expected deal size
+  - `stack` informs technographic signals in Tier A (must-have, strong_signal)
+  - `competitive_signals.known_competitors_from_internal_docs` pre-fills the anti-ICP and competitor names
+  - `gaps_requiring_user_input` becomes the list of questions still worth asking
+- When a brief is found, announce: "Loaded product-brief.json for {{product.name}}. I'll skip questions already answered by the brief and only ask about the gaps it flagged. Confirm if anything in the brief is wrong before I build the ICP."
+- When no brief exists, proceed with the full Phase 0 Socratic interview as normal.
+- Compatibility: handles brief schema version 1.0+ (check `version` field; warn if schema is newer than this skill supports).
+
 **Research offer:**
 Ask: "Want me to research current prospecting sources, competitor customer bases, or industry signals beyond the baseline? (Uses WebFetch - adds 5-10 min)"
 
