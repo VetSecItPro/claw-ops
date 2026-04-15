@@ -1,13 +1,20 @@
 ---
-description: "/icp-from-repo - Extract product context from a local code repo (package.json, README, landing pages, specs) and pre-fill /prospect's ICP workshop. Reads the product, writes product-brief.json, hands off to /prospect."
-allowed-tools: Bash(ls *), Bash(mkdir *), Bash(cat *), Bash(date *), Bash(find *), Bash(wc *), Read, Write, Edit, Glob, Grep, Task, WebFetch
+description: "/icp-from-repo - Extract product context from a product repo (local path OR github.com URL) and pre-fill /prospect's ICP workshop. Reads the product via filesystem or GitHub Contents API (zero disk footprint), writes product-brief.json, hands off to /prospect."
+allowed-tools: Bash(ls *), Bash(mkdir *), Bash(cat *), Bash(date *), Bash(find *), Bash(wc *), Bash(gh *), Bash(jq *), Read, Write, Edit, Glob, Grep, Task, WebFetch
 ---
 
 # /icp-from-repo - Product Context Extraction for ICP Workshops
 
 **Steel Principle: No ICP workshop starts cold when the product repo already answers half the questions.** If the codebase names the features, the README names the audience, and the pricing page names the tiers, extract all of it before interrogating the user.
 
-This skill reads a product's local repository and writes a structured `product-brief.json` that `/prospect` consumes in its Phase 0 Socratic interview. Answers the questions the user would otherwise type in manually: what the product does, who it appears to target, what tech stack it relies on, what language markets it addresses, and what pricing signals exist.
+This skill reads a product's repository and writes a structured `product-brief.json` that `/prospect` consumes in its Phase 0 Socratic interview. Answers the questions the user would otherwise type in manually: what the product does, who it appears to target, what tech stack it relies on, what language markets it addresses, and what pricing signals exist.
+
+**Dual input mode - no cloning, ever:**
+
+- **Local mode** - input is a filesystem path. The skill reads files directly via Read/Glob/Grep. Used when you are sitting in the product directory (typical for Claude Code on a dev workstation).
+- **Remote mode** - input is a `github.com/owner/repo` URL. The skill reads files via `gh api repos/{owner}/{repo}/contents/{path}` and `gh api repos/{owner}/{repo}/git/trees/{ref}?recursive=true`. Zero disk footprint, no clone required. Used when the skill runs on an agent that does not have the repo locally (typical for autonomous agents running on a remote host).
+
+Both modes produce the identical `product-brief.json` schema; downstream skills (`/prospect`, `/reddit-hunt`) do not care which source was used.
 
 > **When to use /icp-from-repo:**
 > - You own or have access to the product's source code
@@ -41,6 +48,8 @@ This skill reads a product's local repository and writes a structured `product-b
 | "The user can fix inaccuracies later" | Inaccurate product-brief corrupts the entire ICP downstream | Flag every uncertain extraction; force user confirmation |
 | "Pricing isn't in the repo, skip it" | Missing pricing is a buying-committee signal (self-serve vs enterprise) | Note the absence; ask the user during handoff |
 | "I know the product, I don't need to re-read it" | Products drift; your knowledge goes stale | Re-scan every run; diff against previous product-brief if one exists |
+| "Just clone the repo, it's easier" | Full clones waste 99%+ on node_modules/artifacts; they persist on disk and need cleanup; they fail for large monorepos | Use `gh api` for remote mode. Never `git clone`. If the agent really needs a clone for other reasons, that's a separate user action outside this skill |
+| "The rate limit is fine, skip the check" | A 403 mid-run corrupts the session and produces a partial brief | Always check `gh api rate_limit` first; abort cleanly if under 100 remaining |
 
 ---
 
@@ -108,9 +117,16 @@ grep -q ".icp-from-repo-reports" .gitignore 2>/dev/null || echo ".icp-from-repo-
 
 Ask these five questions. Wait for answers before scanning.
 
-**Q1:** "What is the repo path? (Default: current working directory. Give me a different path if you want to scan a sibling repo.)"
+**Q1:** "Where is the repo? Give me ONE of: (a) a filesystem path like `./` or `/path/to/product`, or (b) a GitHub URL like `https://github.com/owner/repo`. Default is the current working directory."
 
-**Q2:** "Is this a single product, or a monorepo with multiple products? If multi-product, which one am I profiling?"
+Based on the answer, set the input mode:
+- Path detected -> **local mode** (filesystem reads)
+- `github.com/...` URL detected -> **remote mode** (`gh api` reads, zero disk footprint)
+- Ambiguous -> ask to clarify
+
+For remote mode, also verify `gh auth status` is OK and the repo is accessible (public, or user has a PAT with access). If access fails, surface the exact `gh` error and stop.
+
+**Q2:** "Is this a single product, or a monorepo with multiple products? If multi-product, which one am I profiling? (In remote mode, a subdirectory path works: `owner/repo/apps/{{product_slug}}`.)"
 
 **Q3:** "What is the product known by publicly? (Name as it appears on the website, app store, or marketing materials. Internal codenames don't help.)"
 
@@ -118,7 +134,7 @@ Ask these five questions. Wait for answers before scanning.
 
 **Q5:** "Is there an existing `product-brief.json` I should refresh, or are we starting clean?"
 
-Display a summary of answers and confirm before Phase 1.
+Display a summary of answers (including the detected input mode) and confirm before Phase 1.
 
 ---
 
@@ -132,18 +148,76 @@ grep -q ".marketing-context" .gitignore 2>/dev/null || echo ".marketing-context/
 grep -q ".icp-from-repo-reports" .gitignore 2>/dev/null || echo ".icp-from-repo-reports/" >> .gitignore
 ```
 
-**Repo structure scan (non-destructive, read-only):**
+**Repo structure scan (non-destructive, read-only). Behavior depends on input mode:**
+
+### Local Mode (filesystem path)
+
+Use Glob / Grep / Read directly:
+
 - Root-level manifests: `package.json`, `pyproject.toml`, `Cargo.toml`, `go.mod`, `Gemfile`, `composer.json`, `pom.xml`, `build.gradle`
 - Documentation: `README.md`, `README.mdx`, `docs/`, `CHANGELOG.md`, `AGENTS.md`, `CLAUDE.md`
 - Landing / marketing: `src/app/page.tsx`, `src/app/(marketing)/**`, `app/page.tsx`, `pages/index.tsx`, `public/index.html`, `content/`
 - Product surface: `src/app/**`, `src/components/**`, `src/pages/**`, `app/**`, `api/**`, `routes/**`
-- Pricing: grep for `pricing`, `plans`, `tiers`, `stripe`, `subscription` across repo
+- Pricing: Grep for `pricing`, `plans`, `tiers`, `stripe`, `subscription` across repo
 - Feature flags or env: `.env.example`, `config/`, feature flag files
 
-**Optional WebFetch offer (approval-gated):**
+### Remote Mode (GitHub URL)
+
+Use the GitHub Contents API via `gh` CLI. Zero disk footprint. Two-step pattern: list the tree, then read only the interesting files.
+
+**Step 1 - list the tree (one call):**
+
+```bash
+OWNER=<from URL>
+REPO=<from URL>
+REF=$(gh api repos/${OWNER}/${REPO} --jq .default_branch)
+gh api "repos/${OWNER}/${REPO}/git/trees/${REF}?recursive=true" \
+  > .icp-from-repo-reports/<session>/tree.json
+```
+
+**Step 2 - filter to interesting paths (in-memory, no I/O):**
+
+```bash
+jq -r '.tree[] | select(.type=="blob") | .path' \
+  .icp-from-repo-reports/<session>/tree.json \
+  | grep -E '^(package\.json|pyproject\.toml|Cargo\.toml|go\.mod|Gemfile|composer\.json|README\.md|README\.mdx|CHANGELOG\.md|AGENTS\.md|CLAUDE\.md|\.env\.example|src/app/page\.(tsx|jsx)|src/app/\(marketing\)/.*|app/page\.(tsx|jsx)|pages/index\.(tsx|jsx)|public/index\.html|.*pricing.*\.(tsx|jsx|md|mdx))$' \
+  > .icp-from-repo-reports/<session>/interesting-paths.txt
+```
+
+Also include up to 50 additional paths matching route patterns (`src/app/**/page.tsx`, `src/app/**/route.ts`, `src/pages/**/*.tsx` excluding `_*`, `app/routes/**/*.tsx` for Remix, OpenAPI specs) for the feature inventory. Cap total reads at 75 files per repo to stay well under the 5000 req/hr GitHub rate limit.
+
+**Step 3 - read each interesting file via the Contents API:**
+
+```bash
+while IFS= read -r PATH; do
+  gh api "repos/${OWNER}/${REPO}/contents/${PATH}" --jq '.content' \
+    | base64 -d \
+    > ".icp-from-repo-reports/<session>/raw-content/$(echo "$PATH" | tr '/' '__').txt"
+  sleep 0.2  # Respect rate limit; 5 req/sec leaves headroom
+done < .icp-from-repo-reports/<session>/interesting-paths.txt
+```
+
+**Rate limit guard:**
+
+Before starting, check remaining quota and abort if insufficient:
+
+```bash
+REMAINING=$(gh api rate_limit --jq .resources.core.remaining)
+if [ "$REMAINING" -lt 100 ]; then
+  echo "GitHub API rate limit low ($REMAINING remaining). Aborting to avoid 403s."
+  exit 1
+fi
+```
+
+**Private repo access:** If the repo is private, `gh` uses the user's authenticated session (`gh auth status` must be OK) or the `GITHUB_TOKEN` / `GH_TOKEN` env var. No additional setup required.
+
+**Never clone.** The skill does not shell out to `git clone` under any circumstances. If the user explicitly requests a clone for other reasons, stop and suggest they run `gh repo clone` themselves outside this skill.
+
+### Both Modes: Optional Live URL Fetch
+
 Ask: "Want me to also fetch the live product URL if the README links to one? This catches marketing copy that may differ from the repo. (Adds 2-5 min; skips if no URL.)"
 
-If accepted and a URL is found in README or package.json homepage field, use WebFetch to grab the landing page HTML and extract headlines, sub-headlines, feature grid, and CTAs.
+If accepted and a URL is found in README or package.json homepage field, use WebFetch to grab the landing page HTML and extract headlines, sub-headlines, feature grid, and CTAs. This is independent of input mode - works the same whether the repo scan was local or remote.
 
 ---
 
@@ -151,12 +225,15 @@ If accepted and a URL is found in README or package.json homepage field, use Web
 
 Write `scan-plan.md` with:
 
+- **Input mode:** local (filesystem) / remote (GitHub Contents API)
+- **Source:** path or `owner/repo@ref`
 - **Repo type detected:** (monorepo / single-product / app+docs split / other)
 - **Languages + frameworks:** (from manifests)
 - **Marketing pages found:** list of file paths
 - **API/feature surface:** route count, component count, API endpoint count
 - **Pricing signals:** found / partial / missing
 - **Extraction strategy:** what to read in what order
+- **API rate budget (remote mode only):** `{{N}}` of 5000 req/hr, `{{M}}` remaining pre-scan
 - **Expected gaps:** (e.g., "no pricing page detected - user must supply tier structure")
 
 **HARD GATE:**
@@ -167,8 +244,11 @@ SCAN PLAN REVIEW - /icp-from-repo
 ═══════════════════════════════════════════════════════════════
 
   Product:         {{product_name}}
+  Input mode:      [local / remote]
+  Source:          [/path/to/repo] OR [owner/repo@branch]
   Repo type:       [single / monorepo]
   Files to read:   [N source files, N docs, N marketing pages]
+  API budget:      [N calls, M remaining]   (remote mode only)
   Live URL fetch:  [yes / no]
   Expected gaps:   [list]
 
@@ -181,6 +261,13 @@ Do not proceed until the user approves.
 ---
 
 ## PHASE 3: EXECUTE
+
+**Reading convention for this phase:**
+
+- **Local mode** - read files directly via Read/Glob/Grep at their filesystem paths.
+- **Remote mode** - files were already fetched to `.icp-from-repo-reports/<session>/raw-content/` in Phase 1 Step 3. Read from there; do NOT make additional `gh api` calls for files already retrieved. If a new file needs to be read mid-phase, append it to `interesting-paths.txt` and re-run Step 3 for that single path only (respecting the rate budget).
+
+The extraction subsections below describe WHAT to extract; they apply identically to both modes.
 
 ### 3.1 Manifest Normalization
 
