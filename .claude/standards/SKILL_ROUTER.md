@@ -99,6 +99,9 @@ This document is the **intent-to-skill mapping table**. Reference it on every us
 | "Marketing campaign", "go-to-market", "launch strategy", "marketing plan", "channel strategy", "messaging framework", "ICP", "target audience", "GTM" | `/marketing` | High | **Auto** |
 | "Write a landing page", "email sequence", "ad copy", "sales page", "CTA copy", "conversion copy", "onboarding copy", "pricing page copy", "rewrite this copy", "write copy for" | `/copy` | **Very High** | **Auto** |
 | "Write a post for LinkedIn", "tweet this", "Instagram caption", "social media posts", "content calendar", "post this to social", "social posts", "batch of posts", "TikTok script" | `/social` | **Very High** | **Auto** |
+| "Find customers for this product", "find leads for X", "prospect for my SaaS", "score a list of leads", "build an ICP", "scoring model for accounts" | `/prospect` | **Very High** | **Auto** |
+| "Extract product brief from this repo", "scan my product code", "auto-fill the ICP from the product", "define ICP from this repo", "read the codebase and tell me who it's for" | `/icp-from-repo` | **Very High** | **Auto** |
+| "Find prospects on Reddit", "hunt Reddit for leads", "who's complaining about X on Reddit", "Reddit prospecting", "watch these subreddits for pain signals" | `/reddit-hunt` | **Very High** | **Auto** |
 
 ### Meta Skills
 
@@ -135,7 +138,12 @@ Some intents trigger a chain of skills. Announce the chain upfront.
 
 ### "Launch a product / build a campaign"
 ```
-/marketing (strategy + channel plan) → /copy (landing page + email) → /social (social calendar) → /blog (launch post)
+/icp-from-repo (if product repo is on disk) → /marketing (strategy + channel plan) → /prospect (ICP + scoring) → /reddit-hunt (warm leads with self-identified pain) → /copy (landing page + email) → /social (social calendar) → /blog (launch post)
+```
+
+### "Find and engage prospects from scratch"
+```
+/icp-from-repo → /prospect → /reddit-hunt → /copy (polish top reply drafts)
 ```
 
 ---
@@ -285,4 +293,4 @@ See SKILL_ROUTER.md for the full intent→skill map.
 
 ---
 
-**Last Updated:** 2026-04-13
+**Last Updated:** 2026-04-14

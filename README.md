@@ -1,6 +1,6 @@
 # claude-code-skills
 
-A production skill collection and operating methodology for [Claude Code](https://claude.ai/code). 35+ skills covering development, security, testing, shipping, and marketing - each with explicit verification rules, cross-skill awareness, and intent-based routing so you don't have to memorize command names.
+A production skill collection and operating methodology for [Claude Code](https://claude.ai/code). 39 skills covering development, security, testing, shipping, marketing, and lead generation - each with explicit verification rules, cross-skill awareness, and intent-based routing so you don't have to memorize command names.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Claude Code](https://img.shields.io/badge/Works%20with-Claude%20Code-8A2BE2)](https://claude.ai/code)
@@ -25,11 +25,11 @@ Built and maintained by [Steel Motion LLC](https://steelmotionllc.com), a milita
 
 ## What This Is
 
-Claude Code is Anthropic's CLI for Claude. Out of the box, it handles general coding tasks well. This repo adds 35+ structured skills so specific jobs - security audits, performance tuning, full git pipelines, marketing campaigns, database migrations - run with consistent discipline every time.
+Claude Code is Anthropic's CLI for Claude. Out of the box, it handles general coding tasks well. This repo adds 39 structured skills so specific jobs - security audits, performance tuning, full git pipelines, marketing campaigns, lead generation, database migrations - run with consistent discipline every time.
 
 Each skill is a markdown file that teaches Claude a specific workflow, the rules for that workflow, the verification required before claiming completion, and the cleanup expected after the work is done. The skills share a common foundation (reporting format, status updates, cleanup protocol, sub-agent orchestration) so output is predictable across every skill.
 
-You don't memorize the 35 commands. An intent router reads your natural language and picks the right skill. Say "ship it" and `/gh-ship` runs. Say "this is broken" and `/investigate` runs.
+You don't memorize the 39 commands. An intent router reads your natural language and picks the right skill. Say "ship it" and `/gh-ship` runs. Say "this is broken" and `/investigate` runs. Say "find customers on Reddit" and `/reddit-hunt` runs.
 
 ---
 
@@ -178,6 +178,12 @@ Interactive drafting, auto-detects project (Velite, Contentlayer, MDX), enforces
 **`/prospect`** - ICP definition, prospect research, lead scoring.
 Writes `icp.json` and `scoring.json` that sibling skills (`/marketing`, `/copy`, `/social`) read. Supports batch scoring a list or individual prospect briefs with relationship history and recent news.
 
+**`/icp-from-repo`** - Auto-extract product context from a local code repo.
+Reads package manifests, README, landing pages, and feature routes. Cross-checks marketed features against shipped code and flags the delta (aspirational vs. under-marketed). Writes `product-brief.json` that `/prospect` consumes in Phase 0, eliminating cold-interview tedium when you own the product.
+
+**`/reddit-hunt`** - Reddit-specific prospect discovery.
+Reads your ICP, scans target subreddits for self-identified pain signals, scores posts for fit and urgency, drafts value-first public replies (never DMs, never promo-first). Respects subreddit rules and Reddit API rate limits. Best channel for B2B verticals where CPL is $3-12 vs LinkedIn's $50-150.
+
 ### Meta
 
 **`/write-skill`** - Create new skills using the same methodology.
@@ -252,13 +258,15 @@ Remove dead code first so subsequent audits aren't wasting time on code that's a
 ### Chain 4: Product launch campaign
 
 ```
-/brainstorm → /marketing → /campaign → /prospect → /copy → /social → /newsletter → /blog
+/icp-from-repo → /brainstorm → /marketing → /campaign → /prospect → /reddit-hunt → /copy → /social → /newsletter → /blog
 ```
 
+- `/icp-from-repo` - read the product repo, extract features, pricing, stack, audience hints
 - `/brainstorm` - refine the positioning before building anything
 - `/marketing` - produce the messaging framework (ICP, positioning, Tier 1/2/3 messages)
 - `/campaign` - 90-day GTM timeline with specific weekly deliverables
-- `/prospect` - identify and score target accounts
+- `/prospect` - identify and score target accounts (pre-filled from product-brief.json)
+- `/reddit-hunt` - find warm leads on Reddit who already described the pain; draft value-first replies
 - `/copy` - landing page and email sequences using the messaging framework
 - `/social` - content calendar with posts per platform
 - `/newsletter` - long-form issues for the owned audience
@@ -305,6 +313,8 @@ An intent router (`~/CLAUDE.md` + `~/.claude/standards/SKILL_ROUTER.md`) maps na
 | "write a landing page", "email sequence", "ad copy" | `/copy` | Auto |
 | "LinkedIn post", "social calendar" | `/social` | Auto |
 | "newsletter issue", "email to the list" | `/newsletter` | Auto |
+| "define ICP from this repo", "extract product brief", "scan my product code" | `/icp-from-repo` | Auto |
+| "find customers on Reddit", "prospects on Reddit", "hunt Reddit for leads", "who's complaining about X on Reddit" | `/reddit-hunt` | Auto |
 | "I'm thinking about...", "should I..." | `/brainstorm` | Suggest |
 | "big feature", "architecture change" | `/mdmp` | Suggest |
 | "try to hack this", "red team" | `/redteam` | Suggest (high risk) |
