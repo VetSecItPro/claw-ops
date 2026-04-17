@@ -109,6 +109,7 @@ Every skill references (not duplicates):
 - `~/.claude/standards/CLEANUP_PROTOCOL.md`
 - `~/.claude/standards/CONTEXT_MANAGEMENT.md`
 - `~/.claude/standards/AGENT_ORCHESTRATION.md` (if spawning subagents)
+- `~/.claude/standards/AUTH_GATE_PROTOCOL.md` (if launching a browser against authenticated apps)
 - `~/.claude/standards/STEEL_DISCIPLINE.md`
 
 ### 3. Research-Backed Content

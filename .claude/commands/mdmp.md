@@ -25,7 +25,7 @@ angles before committing resources.
 - Routine maintenance
 - Tasks with obvious single solutions
 
-## The Six Specialist Lenses
+## The Seven Specialist Lenses
 Each lens asks different questions about the same task:
 
 | Lens                  | Questions Asked                                              |
@@ -36,6 +36,7 @@ Each lens asks different questions about the same task:
 | QA/Testing            | Testability? Edge cases? Regression risk? Test strategy?     |
 | Design/UX             | User flow? Accessibility? Consistency? Mobile?               |
 | DevOps                | Deployment? Monitoring? Rollback? Feature flags?             |
+| Risk Management       | Reversibility? Blast radius? Dependencies? Failure modes?    |
 
 ## Decision Matrix Criteria (User-Specified Priority)
 1. Technical elegance
@@ -78,13 +79,14 @@ Each lens asks different questions about the same task:
                               │
                               ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│  PHASE 2: MISSION ANALYSIS (6 Lenses)                           │
+│  PHASE 2: MISSION ANALYSIS (7 Lenses)                           │
 │  • Software Engineering lens                                    │
 │  • Product Management lens                                      │
 │  • Cybersecurity lens                                           │
 │  • QA/Testing lens                                              │
 │  • Design/UX lens                                               │
 │  • DevOps lens                                                  │
+│  • Risk Management lens                                         │
 │  [CONTINUE AUTOMATICALLY]                                       │
 └─────────────────────────────────────────────────────────────────┘
                               │
@@ -162,11 +164,11 @@ Each lens asks different questions about the same task:
 This skill follows the **[Context Management Protocol](~/.claude/standards/CONTEXT_MANAGEMENT.md)**.
 
 Key rules for this skill:
-- Lens analysis agents (6 specialist lenses) return < 500 tokens each (full analysis written to `.mdmp/`)
+- Lens analysis agents (7 specialist lenses) return < 500 tokens each (full analysis written to `.mdmp/`)
 - State file `.mdmp/state-YYYYMMDD-HHMMSS.json` tracks which phases/lenses are complete and which COA was selected
 - Resume from checkpoint if context resets — skip completed lenses, resume from next phase
 - Lens agents can run max 2 parallel (independent perspectives); execution agents run sequentially (they modify code)
-- Orchestrator messages stay lean: "Phase 2: 4/6 lenses complete — SWE, PM, Security, QA done"
+- Orchestrator messages stay lean: "Phase 2: 5/7 lenses complete — SWE, PM, Security, QA, Risk done"
 
 ---
 
@@ -198,7 +200,7 @@ Key enforcements for this skill:
 2. **User approval ONLY at COA selection** - Present decision matrix, await commander's choice
 3. **AUTONOMOUS EXECUTION** - After COA approval, execute through completion without pausing
 4. **Scale depth to complexity** - TACTICAL gets lightweight treatment, STRATEGIC gets the full works (see Tiered Activation below)
-5. **Respect all six lenses** - Every lens must examine the task
+5. **Respect all seven lenses** - Every lens must examine the task
 6. **Produce persistent Orders file** - .mdmp/ directory with timestamped markdown
 7. **Track progress** - Check off tasks as completed
 8. **Deliver SITREP** - Always conclude with situation report
@@ -389,7 +391,7 @@ Proceeding to Mission Analysis...
 
 ---
 
-## PHASE 2: MISSION ANALYSIS (Six Lenses)
+## PHASE 2: MISSION ANALYSIS (Seven Lenses)
 
 Examine the mission through each specialist lens. For TACTICAL missions, keep each brief (2-3 bullets). For OPERATIONAL/STRATEGIC, go deeper.
 
@@ -538,7 +540,42 @@ Analyze:
 - **Feature flags**: Should this be behind a flag?
 - **CI/CD**: Pipeline changes needed?
 
-### 2.7 Present Analysis
+### 2.7 Risk Management Lens
+
+Analyze every COA and implementation path through the risk lens. This is the "what can go wrong" lens - it forces explicit consideration of failure scenarios before committing resources.
+
+Analyze:
+- **Reversibility**: Is this a one-way door or two-way door? Can we undo it?
+- **Blast radius**: If this fails, what's the worst-case impact? Users affected? Data lost?
+- **Dependencies**: What external systems, services, or people does success depend on?
+- **Single points of failure**: Is there one thing that, if it breaks, takes everything down?
+- **Failure modes**: How does this fail? Gracefully or catastrophically?
+- **Recovery time**: If it breaks at 2am, how long to restore service?
+- **Compliance exposure**: Does this create legal, regulatory, or contractual risk?
+- **Financial exposure**: What's the dollar cost of failure? (downtime, data loss, legal)
+
+**Risk Register (OPERATIONAL: top 3 risks / STRATEGIC: exhaustive):**
+
+| # | Risk | Likelihood (1-5) | Impact (1-5) | Score | Mitigation | Owner |
+|---|------|------------------|--------------|-------|------------|-------|
+| R1 | [risk description] | 3 | 5 | 15 | [specific mitigation] | [lens] |
+| R2 | ... | ... | ... | ... | ... | ... |
+
+**Score = Likelihood x Impact.** Any risk scoring 15+ (high likelihood x high impact) becomes a BLOCKING constraint on COA selection - that COA must include the mitigation or be rejected.
+
+**Reversibility Classification (all tiers):**
+
+| Decision | Door Type | Undo Method | Time to Undo |
+|----------|-----------|-------------|--------------|
+| [decision] | One-way / Two-way | [how to reverse] | [hours/days/impossible] |
+
+One-way doors require explicit user approval in the COA selection. Two-way doors can proceed with confidence.
+
+**TACTICAL:** Top 3 risks, reversibility check, skip the register.
+**OPERATIONAL:** Full risk register (5-8 risks), reversibility table, mitigation plan.
+**STRATEGIC:** Exhaustive register, pre-mortem exercise ("assume this failed - why?"), contingency plan for each risk scoring 10+.
+
+### 2.8 Present Analysis
 
 ```
 ═══════════════════════════════════════════════════════════════════
@@ -570,6 +607,12 @@ Analyze:
 ## DevOps Lens
 • [finding 1]
 • [finding 2]
+
+## Risk Management Lens
+⚠️ [highest risk if score 15+]
+• [risk register summary]
+• [reversibility classification]
+• [key mitigation actions]
 
 ───────────────────────────────────────────────────────────────────
 Proceeding to COA Development...
@@ -1317,7 +1360,7 @@ AUTONOMOUS ANALYSIS PHASE (No pauses)
     [ ] Dream-state delta (STRAT. only)
     → CONTINUE AUTOMATICALLY (TACTICAL skips entirely)
 
-[ ] PHASE 2: Mission Analysis (Six Lenses)
+[ ] PHASE 2: Mission Analysis (Seven Lenses)
     [ ] Software Engineering lens (+ cognitive patterns + diagrams)
     [ ] Product Management lens (+ scope mode + premise integration)
     [ ] Cybersecurity lens

@@ -188,29 +188,18 @@ Filter to last `WINDOW_DAYS` via `created_at_i` (Unix timestamp): `select(.creat
 
 ### 2.2 GitHub Issues Backend
 
-**Why `gh api` (or curl when gh is unavailable):** GitHub's search API (`/search/issues`) exposes high-quality pain language - "this is broken", "I keep hitting", "anyone know a workaround". Rate limits: **10 req/min anonymous** (hit this fast), **30 req/min unauthenticated fresh IPs**, **5000/h authenticated**. Order of preference: `gh api` (uses user's stored auth) -> `curl` with `GITHUB_TOKEN` env var (5000/h) -> anonymous `curl` (10/min, usable but limiting).
+**Why `gh api` (or curl when gh is unavailable):** GitHub's search API (`/search/issues`) exposes high-quality pain language - "this is broken", "I keep hitting", "anyone know a workaround". 30 req/min unauthenticated, 5000/h authenticated. We prefer `gh api` for auth-included rate (5000/h); fall back to anonymous `curl` if `gh` is unavailable (e.g. on a VPS without it).
 
 ```bash
 # We search WITHOUT a repo:filter to capture cross-repo pain. We add `is:issue`
 # to exclude PRs, and `in:body,comments` to catch pain in discussion text.
 GH_OUT="$SESSION_DIR/raw/gh-${KEYWORD_HASH}.json"
 QUERY="$KEYWORD is:issue in:body,comments created:>$(date -u -v-${WINDOW_DAYS}d +%Y-%m-%d 2>/dev/null || date -u -d "${WINDOW_DAYS} days ago" +%Y-%m-%d)"
-QUERY_ENCODED=$(jq -nr --arg q "$QUERY" '$q|@uri')
 
 if command -v gh >/dev/null 2>&1; then
-  # Preferred: gh uses stored auth, 5000/h rate
-  gh api "search/issues?q=${QUERY_ENCODED}&per_page=20" > "$GH_OUT"
-elif [ -n "${GITHUB_TOKEN:-${GH_TOKEN:-}}" ]; then
-  # Second best: curl with PAT, 5000/h rate
-  AUTH_TOKEN="${GITHUB_TOKEN:-${GH_TOKEN}}"
-  curl -s "https://api.github.com/search/issues?q=${QUERY_ENCODED}&per_page=20" \
-    -H "Accept: application/vnd.github+json" \
-    -H "Authorization: Bearer ${AUTH_TOKEN}" \
-    -H "X-GitHub-Api-Version: 2022-11-28" > "$GH_OUT"
+  gh api "search/issues?q=$(jq -nr --arg q "$QUERY" '$q|@uri')&per_page=20" > "$GH_OUT"
 else
-  # Fallback: anonymous curl, 10 req/min. Warn user.
-  echo "WARNING: neither 'gh' CLI nor GITHUB_TOKEN/GH_TOKEN env var available. Using anonymous curl at 10 req/min rate limit. Set GITHUB_TOKEN for 5000/h rate."
-  curl -s "https://api.github.com/search/issues?q=${QUERY_ENCODED}&per_page=20" \
+  curl -s "https://api.github.com/search/issues?q=$(jq -nr --arg q "$QUERY" '$q|@uri')&per_page=20" \
     -H "Accept: application/vnd.github+json" > "$GH_OUT"
 fi
 sleep 2  # respect anonymous rate limits

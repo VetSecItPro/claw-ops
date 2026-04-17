@@ -228,6 +228,23 @@ Create a new skill using TDD methodology.
 
 ## Quick Reference: "What do I run next?"
 
+## Shared Protocols (auto-inherited by capability)
+
+Skills inherit shared protocols based on what resources they use. You don't wire these manually - if a skill uses a browser, it gets the auth gate protocol automatically.
+
+| Capability | Protocol | Skills That Inherit |
+|---|---|---|
+| Launches a browser (Playwright MCP) | [Auth Gate Protocol](./AUTH_GATE_PROTOCOL.md) | `/browse`, `/qatest`, `/redteam`, `/a11y`, `/design`, `/perf`, `/investigate` |
+| Creates resources (servers, data, files) | [Cleanup Protocol](./CLEANUP_PROTOCOL.md) | All skills |
+| Runs sub-agents | [Agent Orchestration](./AGENT_ORCHESTRATION.md) | `/launch`, `/subagent-dev`, `/ship`, `/fortress`, `/quality`, `/plan` |
+| Produces reports | [SITREP Format](./SITREP_FORMAT.md) | All skills with report output |
+
+**When writing a new skill or plugin** that launches a browser: reference the Auth Gate Protocol. When the browser hits a login screen, it detects, resolves, tests, and cleans up automatically. No manual intervention. No hanging.
+
+---
+
+## Suggested Next Skills
+
 | Just finished... | Consider running... |
 |---|---|
 | /brainstorm | /mdmp (structure it) or /subagent-dev (execute it) |

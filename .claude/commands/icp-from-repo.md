@@ -14,7 +14,7 @@ This skill reads a product's repository and writes a structured `product-brief.j
 - **Local mode** - input is a filesystem path. The skill reads files directly via Read/Glob/Grep. Used when you are sitting in the product directory (typical for Claude Code on a dev workstation).
 - **Remote mode** - input is a `github.com/owner/repo` URL. The skill reads files via `gh api repos/{owner}/{repo}/contents/{path}` and `gh api repos/{owner}/{repo}/git/trees/{ref}?recursive=true`. Zero disk footprint, no clone required. Used when the skill runs on an agent that does not have the repo locally (typical for autonomous agents running on a remote host).
 
-Both modes produce the identical `product-brief.json` schema; downstream skills (`/prospect`, `/reddit-hunt`) do not care which source was used.
+Both modes produce the identical `product-brief.json` schema; downstream skills (`/prospect`, `/hunt`) do not care which source was used.
 
 > **When to use /icp-from-repo:**
 > - You own or have access to the product's source code
@@ -56,6 +56,39 @@ Both modes produce the identical `product-brief.json` schema; downstream skills 
 ## STATUS UPDATES
 
 This skill follows the [Status Update Protocol](~/.claude/standards/STATUS_UPDATES.md). See standard for emoji format and cadence rules.
+
+**Skill-specific status template:**
+
+```markdown
+🚀 /icp-from-repo Started
+   Input mode:  [local / remote]
+   Source:      [/path] OR [owner/repo@branch]
+   Product:     [name]
+
+🔍 Phase 1: Repo Scan
+   ├─ Monorepo detection: [single / N packages]
+   ├─ [local] Files globbed: [N]
+   └─ [remote] API budget: [N of 5000 used, M remaining]
+
+🎯 Phase 2: Scan Plan + HARD GATE
+   └─ ⏸ Awaiting user approval
+
+🔨 Phase 3: Extract
+   ├─ Manifest normalized
+   ├─ README synthesized
+   ├─ Features inventoried: [N marketed, M shipped]
+   ├─ JSON-LD blocks: [N found]
+   ├─ CLAUDE.md / AGENTS.md strategic intel: [parsed / absent]
+   ├─ Pricing signals: [found / partial / missing]
+   └─ ✅ product-brief.json written
+
+🧪 Phase 4: Verify (read-back to user, capture corrections)
+   └─ ✅ [N] corrections applied
+
+📊 Phase 5: SITREP + handoff → /prospect
+```
+
+**Autonomy rule:** After Phase 2 HARD GATE approval, extraction runs end-to-end. Phase 4 read-back is the ONLY mid-run interactive touchpoint, and only to capture user corrections to extracted fields. No other confirmations.
 
 ---
 
