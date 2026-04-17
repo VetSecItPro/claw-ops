@@ -1219,6 +1219,109 @@ For each API route in app/api/:
 8. Are there duplicate patterns across routes that could be middleware?
 ```
 
+### 3.7 WHY Comment Audit (LLM-Powered)
+
+**Purpose:** Scan the codebase for non-obvious code decisions that lack inline WHY comments.
+This is NOT docstring generation (what a function does) - it's intent documentation (why a
+specific implementation choice was made). No existing tool does this; it requires understanding
+the surrounding context to identify decisions that would confuse a future reader.
+
+**Agent:** `sonnet` - needs to reason about code intent and non-obvious trade-offs
+
+**What qualifies as "needs a WHY comment":**
+
+| Code Pattern | Why It Needs a Comment | Example Comment |
+|---|---|---|
+| Magic numbers or thresholds | Reader won't know why that specific value | `// 500ms debounce - faster triggers API rate limits` |
+| Security decisions | Reader might "simplify" away the protection | `// Identical error for missing user vs wrong code - prevents enumeration` |
+| Workarounds for framework/library bugs | Reader might remove the "unnecessary" code | `// Explicit null check - React 19 strictMode double-renders cause stale ref` |
+| Non-obvious ordering | Reader might reorder for "clarity" | `// Clean dead code BEFORE updating deps - avoids updating unused packages` |
+| Performance-motivated choices | Reader might refactor into "cleaner" but slower version | `// Inline style instead of className - avoids Tailwind purge miss in dynamic component` |
+| Business logic branches | Reader won't know the business rule | `// Premium tier gets 6-hour backup interval, not daily` |
+| Intentional omissions | Reader might add the "missing" code | `// No auth check here - this route is public (webhook receiver)` |
+| Environment-specific branches | Reader might not know why both paths exist | `// /.dockerenv exists in containers but not bare metal - reliable env detection` |
+| Regex patterns | Almost always non-obvious | `// Match scrypt format: "scrypt:<salt>:<hash>" - 3 colon-separated segments` |
+| Error handling choices | Reader might wonder why catch is empty or why retry count | `// Retry 3x with backoff - Ollama Cloud occasionally returns 503 under load` |
+
+**What does NOT need a WHY comment (skip these):**
+
+| Pattern | Why Skip |
+|---|---|
+| Simple CRUD operations | Self-evident from function name and types |
+| Standard framework patterns | `useEffect`, `getServerSideProps`, route handlers with obvious purpose |
+| Well-named variables and functions | Good naming IS the documentation |
+| Import statements | Never comment imports |
+| Type definitions | The types document themselves |
+| Simple conditionals with clear intent | `if (!user) return unauthorized()` is self-evident |
+
+**Audit process:**
+
+```
+For each file modified in the current cleancode run (or all files if first run):
+
+1. SCAN: Read the file and identify candidate locations:
+   - Functions longer than 15 lines
+   - Conditional branches with non-obvious conditions
+   - Try/catch blocks with specific error handling
+   - Numeric literals that aren't 0, 1, or common defaults
+   - Regex patterns
+   - setTimeout/setInterval with specific durations
+   - Security-related code (auth checks, sanitization, encryption)
+   - Environment-detection branches
+   - Code that references external systems (APIs, DBs, services)
+
+2. FILTER: For each candidate, check:
+   - Does a WHY comment already exist within 2 lines above? → Skip
+   - Is the intent obvious from naming alone? → Skip
+   - Is this a standard framework pattern? → Skip
+   - Would a competent developer joining the team understand this without context? → Skip
+
+3. GENERATE: For candidates that survive filtering:
+   - Read the surrounding function and file for context
+   - Determine the non-obvious WHY (not WHAT)
+   - Write a single-line comment (max 100 chars) starting with WHY, not WHAT
+   - Place it on the line immediately above the code it explains
+
+4. VALIDATE: Before inserting any comment:
+   - Does it explain WHY, not WHAT? ("// Escape markdown" is WHAT; "// User answers may contain # that breaks template structure" is WHY)
+   - Is it specific to THIS code, not generic? ("// Handle error" is generic; "// Ollama Cloud returns 503 under load, retry with backoff" is specific)
+   - Is it under 100 characters?
+   - Does it NOT reference the current task, ticket, or PR? (Those rot as context changes)
+```
+
+**Comment format rules:**
+- Single line only: `// WHY explanation`
+- No multi-line comment blocks (`/* */`)
+- No JSDoc-style comments on internal functions (only exported API surfaces)
+- No trailing comments on the same line as code
+- Use sentence fragments, not full sentences: `// Prevents enumeration attacks` not `// This prevents enumeration attacks.`
+- Never start with "This", "We", "I", or "Note:"
+
+**Output format in cleancode report:**
+
+```
+## WHY Comment Audit
+
+Files scanned: [N]
+Candidates identified: [N]
+Comments inserted: [N]
+Skipped (already documented): [N]
+Skipped (self-evident): [N]
+
+### Comments Added
+
+| File | Line | Comment |
+|---|---|---|
+| src/lib/users.ts:335 | `hashes.push(...)` | // scrypt hash each code individually so DB compromise doesn't reveal all codes |
+| src/app/api/operations/route.ts:22 | `existsSync("/.dockerenv")` | // /.dockerenv exists in containers but not bare metal - reliable env detection |
+```
+
+**Safety rules:**
+- Never modify code logic, only add comments
+- Never remove existing comments (even if they seem wrong - flag for review instead)
+- Build must still pass after comment insertion (comments can't break syntax)
+- If a file has zero candidates, don't add comments just to hit a quota
+
 ---
 
 ## PHASE 4: EXECUTE CLEANUP
@@ -1244,6 +1347,7 @@ Execute in this exact order — safest changes first, riskiest last:
 15. **Complexity reduction** (test thoroughly)
 16. **Tailwind cleanup** (conflicting/duplicate utilities)
 17. **Orphaned file removal** (flag for review, don't auto-delete)
+18. **WHY comment insertion** (safest last - adds only comments, never changes logic)
 18. **Security cruft** (remove debug endpoints, fix exposed data)
 19. **TODO processing** (resolve or create issues for old ones)
 

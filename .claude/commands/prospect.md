@@ -49,6 +49,37 @@ A full-stack prospect intelligence skill. Give it a context and a goal; it retur
 
 This skill follows the [Status Update Protocol](~/.claude/standards/STATUS_UPDATES.md). See standard for emoji format and cadence rules.
 
+**Skill-specific status template:**
+
+```markdown
+🚀 /prospect Started
+   Mode:     [ICP Workshop / Scoring / Brief / Batch]
+   Target:   [N accounts / ICP refresh / batch CSV]
+   Tools:    [Apollo / Clay / BuiltWith / Manual]
+
+🔍 Phase 0: Socratic Interview
+   └─ ✅ 5 answers captured
+
+📁 Phase 1: Context Load
+   ├─ Loaded brand.json
+   ├─ Loaded existing icp.json (if present)
+   └─ ✅ Context loaded
+
+🎯 Phase 2: Plan + HARD GATE
+   └─ ⏸ Awaiting user approval
+
+🔨 Phase 3: Execute [mode]
+   └─ ✅ [N prospects scored / ICP document written / N briefs produced]
+
+🧪 Phase 4: Verification
+   └─ ✅ 7/7 checks passed
+
+📊 Phase 5: SITREP
+   └─ ✅ Report written to .marketing-reports/[session]/sitrep.md
+```
+
+**Autonomy rule:** After the Phase 2 HARD GATE approval, the skill runs the selected mode end-to-end without further confirmations. Do not re-prompt the user between Phases 3-5.
+
 ---
 
 ## CLEANUP PROTOCOL
@@ -94,17 +125,6 @@ grep -q ".marketing-context" .gitignore 2>/dev/null || echo ".marketing-context/
 - Check `.marketing-context/brand.json` - if found, load it for positioning context
 - If not found, check `~/.claude/marketing-global/` for named brand files
 - Note: brand context informs ICP language and proof points but does not gate execution
-
-**Product brief load (handoff from `/icp-from-repo`):**
-- Check `.marketing-context/product-brief.json` - if found, auto-populate the Phase 0 Socratic interview with extracted product context:
-  - Q2 best-customer hypothesis seeds from `audience_hypothesis.from_feature_set` and `audience_hypothesis.from_landing_copy`
-  - Pricing model from `pricing.model` and `pricing.tiers` informs Tier A/B/C expected deal size
-  - `stack` informs technographic signals in Tier A (must-have, strong_signal)
-  - `competitive_signals.known_competitors_from_internal_docs` pre-fills the anti-ICP and competitor names
-  - `gaps_requiring_user_input` becomes the list of questions still worth asking
-- When a brief is found, announce: "Loaded product-brief.json for {{product.name}}. I'll skip questions already answered by the brief and only ask about the gaps it flagged. Confirm if anything in the brief is wrong before I build the ICP."
-- When no brief exists, proceed with the full Phase 0 Socratic interview as normal.
-- Compatibility: handles brief schema version 1.0+ (check `version` field; warn if schema is newer than this skill supports).
 
 **Research offer:**
 Ask: "Want me to research current prospecting sources, competitor customer bases, or industry signals beyond the baseline? (Uses WebFetch - adds 5-10 min)"
@@ -905,6 +925,12 @@ Negative ICP: Under 30 employees (-15), no CRM (-25, remove), government sector 
 **Auto-suggest after completion:**
 - If Tier A accounts found: suggest `/copy` with Economic Buyer and Champion as target personas
 - If ICP was created or refreshed: suggest sharing icp.json path with `/campaign`
+
+---
+
+## PATTERN
+
+Pattern A (Socratic + Plan + Gate + Verify + SITREP) per [Skill Pattern Standard](~/.claude/standards/SKILL_PATTERN.md).
 
 ARGUMENTS: $ARGUMENTS
 

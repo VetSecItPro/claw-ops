@@ -282,7 +282,7 @@ The timestamped markdown report in `.qatest-reports/` is the definitive record. 
 
 7. **Detect app capabilities (for targeted testing):**
    ```
-   - Has authentication? → Enable auth flow testing
+   - Has authentication? → Enable auth flow testing + run Auth Gate Protocol (see step 7b)
    - Has forms? → Enable form submission testing
    - Has dynamic routes? → Enable content enumeration
    - Has middleware? → Enable middleware/header testing
@@ -294,6 +294,24 @@ The timestamped markdown report in `.qatest-reports/` is the definitive record. 
    - Has i18n/localization? → Enable locale testing
    - Has webhooks? → Enable webhook testing
    - Has WebSocket/real-time? → Enable real-time testing
+   ```
+
+7b. **Auth Gate Resolution (if auth detected):**
+   > Reference: [Auth Gate Protocol](~/.claude/standards/AUTH_GATE_PROTOCOL.md)
+   ```
+   If authentication was detected in step 7:
+   a. Classify routes: public vs protected (check middleware, route groups, redirects)
+   b. Test public routes FIRST (no auth needed, guaranteed coverage)
+   c. For protected routes, resolve auth using priority order:
+      1. Service token header (if app supports x-service-token or similar)
+      2. Create test user via API (qatest_{timestamp}@example.com)
+      3. Use existing credentials from .env/.env.local (ADMIN_PASSWORD, etc.)
+      4. Ask the user (LAST RESORT - never silently hang on a login screen)
+   d. Login via browser: fill login form, click submit, verify redirect to protected page
+   e. Track test user ID in state file for cleanup
+   f. All subsequent browser navigation uses the authenticated session
+   - NEVER hang on a login screen. If all strategies fail, skip protected routes and report.
+   - NEVER bypass 2FA. If 2FA is mandatory, skip authenticated testing and report.
    ```
 
 8. **Create report infrastructure:**

@@ -15,6 +15,18 @@ This skill wraps Playwright MCP's 20+ tools into a higher-level interface with c
 
 ---
 
+## AUTH GATE PROTOCOL
+
+> Reference: [Auth Gate Protocol](~/.claude/standards/AUTH_GATE_PROTOCOL.md)
+
+When the browser encounters a login screen:
+1. Detect the auth gate (URL redirect to /login, login form visible, 401 response)
+2. Resolve using priority strategies: service token > API user creation > env credentials > ask user
+3. Track test user for cleanup
+4. Proceed with authenticated browsing
+5. Clean up test user at end of session
+**Never silently hang on a login screen.**
+
 ## DISCIPLINE
 
 > Reference: [Superpowers Discipline Protocol](~/.claude/standards/STEEL_DISCIPLINE.md)
